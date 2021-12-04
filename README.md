@@ -1,2 +1,3 @@
 # Causal-2-Pedagogy
-This repository aims to organize all the materials and teaching resources for PH243A, Advanced Topics in Causal Inference
+
+This repository aims to organize all the materials and teaching resources for PH243A, Advanced Topics in Causal Inference. The main goal is to create a repository of resources for graduate student instructors (GSIs) that has version control such that as labs, simulations, and other resources change between GSIs there is a running history that can trace these changes. Overall, this repository aims to provide information that can be used by future GSIs to incrementally make PH243A use more of the teaching methods detailed in the book _Building Thinking Classrooms in Mathematics_
