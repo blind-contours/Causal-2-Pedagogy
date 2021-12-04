@@ -1,0 +1,560 @@
+% if you want the answers to appear uncomment the below
+\documentclass[answers]{exam}
+% otherwise uncomment the below
+%\documentclass{exam}
+
+\usepackage{graphicx}
+\usepackage[letterpaper, margin=.9in]{geometry}
+\usepackage{natbib}
+\bibpunct{(}{)}{;}{a}{,}{,}
+\usepackage{url}
+\def\UrlFont{\rm}
+
+\usepackage{Sweave}
+\SweaveOpts{keep.source=TRUE}
+\usepackage[utf8x]{inputenc}
+\usepackage{array}
+\usepackage{verbatim}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+%\usepackage{lineno}
+\setlength{\parskip}{2ex} 
+%\setlength{\parindent}{0ex}
+
+% Cannot place floats in figure environment.
+\usepackage{caption}
+\usepackage{newfloat}
+%\DeclareCaptionListFormat{myliststyle}{#1.#2}
+\DeclareCaptionType{mytype}[Solution Fig.][List of mytype]
+\newenvironment{myfigure}{\captionsetup{type=mytype}}{}
+
+
+
+\newenvironment{packed_enum}{
+\begin{enumerate}
+ \setlength{\itemsep}{0pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}
+}{\end{enumerate}}
+\newenvironment{packed_item}{
+\begin{itemize}
+ \setlength{\itemsep}{0pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}
+}{\end{itemize}}
+
+ \newcommand\independent{\protect\mathpalette{\protect\independenT}{\perp}}
+    \def\independenT#1#2{\mathrel{\setbox0\hbox{$#1#2$}%
+    \copy0\kern-\wd0\mkern4mu\box0}} 
+
+
+\bibliographystyle{plainnat}
+
+\pagestyle{myheadings}
+\markright{Advanced Topics in Causal Inference \hfill  R Lab \#5 \hfill}
+
+\title{R Lab 5 - Introduction to the \texttt{ltmle} Package}
+\author{Advanced Topics in Causal Inference}
+\date{}
+
+
+\begin{document}
+\maketitle
+
+\SweaveOpts{concordance=TRUE}
+
+\maketitle
+\noindent \textbf{Assigned:} October 19, 2020\\
+\textbf{Lab due:} October 27, 2020 on bCourses. Please answer all questions and include relevant \texttt{R} code. You are encouraged to discuss the assignment in groups, but should not copy code or interpretations verbatim. Upload your own completed lab as a pdf to bCourses.
+
+
+
+\noindent \textbf{Last lab:} \\ 
+IPTW estimation and performance evaluation for treatment specific means and MSMs.\\
+
+
+\noindent \textbf{Goals for this lab:} \\
+1. Gain familiarity with the \texttt{ltmle R} package and apply it to estimate causal parameters using point treatment data.\\
+2. Evaluate the bias, variance, MSE, and confidence interval coverage of the g-computation, IPTW, and TMLE estimators in a point treatment setting.
+
+
+\noindent \textbf{Next lab:}\\
+Implement parametric g-computation estimator, ICE representation of longitudinal g-computation formula, and TMLE.
+
+\begin{center}
+\noindent\rule{18cm}{0.4pt}
+\end{center}
+
+\section{Introduction and Motivation}
+
+The \texttt{ltmle} package in R is very useful for estimating parameters from a longitudinal data structure. However, to get started, we will use the package to estimate parameters in the setting of one time point or point treatment. In the point treatment setting, we will also learn that \texttt{ltmle} is very useful for multi-level (more than 2) treatments  for which the effects can be summarized via estimation of an MSM.
+
+\begin{figure}
+\begin{center}
+\includegraphics[width=.4\textwidth]{../tamale.jpg}
+\caption{L-TaMaLE package.}
+\end{center}
+\end{figure}
+
+
+\section{This lab}
+
+For this lab you'll need to have the \texttt{ltmle} package installed. To do so, run \texttt{install.packages("ltmle")} in your console. Note that you only need to install a package once, so don't keep the \texttt{install.packages()} line in your \texttt{R} script. Then load the package: \texttt{library(ltmle)}.
+
+\subsection{To turn in:}
+
+
+\noindent\fbox{
+    \parbox{\textwidth}{
+
+In this lab, we won't be answering questions pertaining to each of the data structures, as in previous labs. Instead, go through this document, answering questions written in \textbf{bold}. 
+
+    }
+}
+\section{Formatting for the \texttt{ltmle} Package}
+
+The \texttt{ltmle} package takes in \textit{wide-form} data. Wide-form data in this context means every row of the data represents the entire history of a subject -- each row is unique to one subject. If we consider an individual row in the data, it should be ordered according to the structural equations, with the baseline variables being on the left. If we stack all of these rows on top of each other, the data is in wide-form. So far, in these labs we have been working with wide-form data. To see this, let us load some data we created in \texttt{R} Lab 1.
+
+\begin{enumerate}
+\item \textbf{Load \texttt{DataStructure2.RData} using the \texttt{load()} function.} Make sure you have specified the correct file path. You should see the dataframe \texttt{ObsData2} come up in your global environment.
+\item \textbf{Look at the \texttt{head()} of \texttt{ObsData2}.} Based on the definition above, why is this considered to be wide-form data?
+\end{enumerate}
+
+<<echo = FALSE>>=
+library(ltmle)
+set.seed(252)
+@
+
+\section{Arguments of the \texttt{ltmle()} function}
+
+The \texttt{ltmle()} function lives within the \texttt{ltmle} package. Type \texttt{?ltmle} in your console to look at the function's help file. 
+The first argument of the function is \texttt{data}, a dataframe which we must specify. Specifying the \texttt{data} argument tells \texttt{ltmle()} to look within that dataframe to carry out its computations. 
+
+We must also set the nodes. For example, for the argument \texttt{Anodes}, we can set by name:
+<<eval = F>>=
+Anodes = c("A1", "A2", "A3", "A4")
+@
+or by position:
+<<>>=
+Anodes = c(2, 4, 6, 8)
+@
+
+
+
+\begin{enumerate}
+\item \textbf{Make a new dataframe \texttt{ObsData}. Let it have only the columns \texttt{L1}, \texttt{A1}, and \texttt{Y} of the original data.} \\
+\emph{Hint:} use the \texttt{subset()} function.
+\item \textbf{Set the variables \texttt{Lnodes}, \texttt{Anodes}, and \texttt{Ynodes} to the character names they have in \texttt{ObsData2}.} For example, make \texttt{Lnodes = "L1"}.
+\end{enumerate}
+
+\section{Quick review of estimators for treatment specific mean}
+
+Recall that in Causal I we learned about three estimators: 1) g-computation, 2) Inverse Probability of Treatment Weighting (IPTW), and 3) Targeted maximum Likelihood Estimator (TMLE). These estimators estimate the treatment specific mean under a point treatment setting, or: 
+
+\[
+\Psi^F(P_{UX})=E_{U,X}[Y_{a}]
+\]
+
+In words, this is the counterfactual mean outcome of the population under treatment, $A = a$. 
+
+\begin{enumerate}
+\item \underline{G-computation estimator}
+\[
+\hat{\psi}_{n,gcomp}(P_{n})=\frac{1}{n}\sum_{i=1}^{n}\bar{Q}_{n}(A_i=a,W_{i})
+\]
+
+where $\bar{Q}_{n}(A,W)$ is an estimate of $\bar{Q}_{0}(A,W)=E_{0}[Y| A,W]$, the outcome regression.
+
+To obtain $\bar{Q}_{n}$ we will perform a logistic regression, noting the usual limitations of this approach (i.e., if the model is misspecified, the estimator will be biased).
+
+For statistical inference we will use the non-parametric bootstrap, forming the 95\% confidence interval from the 2.5\% and 97.5\% quantiles. 
+
+\item \underline{IPTW estimator}
+
+\[
+\hat{\psi}_{n, IPTW}(P_{n})=\frac{1}{n}\sum_{i=1}^{n}\frac{\mathbb{I}(A_{i}=a)Y_{i}}{g_{n}(A_{i}=a | W_{i})}
+\]
+
+where $g_{n}(A=a\vert W)$ is an estimate of $g_{0}(A=a\vert W)=P_{0}(A=a\vert W)$.
+Again, to obtain $g_{n}$ we will perform a logistic regression, again noting the usual limitations of this approach (i.e., if the model is misspecified, the estimator will be biased).
+
+In the ltmle package the standard error for the IPTW estimator is obtained via the IPTW influence curve, which we approximate by:
+\[
+\hat{IC}_{IPTW}(O_{i})=\frac{\mathbb{I}(A_{i}=a)Y_{i}}{g_{n}(A_{i}=a\vert W_{i})}-\hat{\psi}_{n,IPTW}
+\]
+
+and the standard error is
+\[
+\hat{SE}_{IPTW}=\frac{\hat{\sigma}\left(\hat{IC}_{IPTW})\right)}{\sqrt{n}}
+\]
+
+Note: $\hat{\sigma}$ is the symbol for ``take sample standard deviation of".  This means we plug in the data to the $\hat{IC}$ formula, forming a vector of length, $n$, and then take the standard deviation of that vector. We then obtain the confidence interval:
+\[
+\hat{\psi}_{n, IPTW}\pm 1.96\times \hat{SE}_{IPTW}
+\]
+
+For comparison, we will also implement the non-parametric bootstrap.
+
+\item \underline{TMLE}
+
+\[
+\hat{\psi}_{n, TMLE}(P_{n})=\frac{1}{n}\sum_{i=1}^{n}\bar{Q}_{n}^{\star}(A_i=a,W_{i})
+\]
+ where $\bar{Q}_{n}^{\star}$ is an update of initial estimate, $\bar{Q}_{n}$. 
+ 
+As with the g-computation estimator, we will perform a logistic regression to obtain $\bar{Q}_{n}$, noting that in most (if not all) situations one would have a semi- or non- parametric model and thus employ SuperLearner to estimate $\bar{Q}_{n}$ before updating.
+
+We first compute the clever covariate:
+\[
+H(A_{i},W_{i})=\frac{\mathbb{I}(A_{i}=a)}{g_{n}(A_{i}=a\vert W_{i})}
+\]
+
+where $g_{n}(A=a\vert W)$ is an estimate of $g_{0}(A=a\vert W)=P_{0}(A=a\vert W)$, obtained by logistic regression here, but normally obtained by using SuperLearner if $g_{0}$ is unknown.
+
+We then perform a logistic regression of $Y$ regressed on this clever covariate, suppressing the intercept, and using $logit(\bar{Q}_{n})$ as the intercept, and obtain the estimated coefficient on the clever covariate,  $\epsilon_{n}$ (an approximation of $\epsilon$). That is:
+
+\[
+logit\left(E_{0}[Y\vert A,W]\right)=\epsilon H(A,W)+logit(\bar{Q}_{n})
+\]
+ 
+Note: the \texttt{ltmle} package actually moves the $\frac{1}{g_n}$ term in the clever covariate into the weights of the logistic regression, which reduces the variance of the estimator. Therefore we have:
+
+\[
+\bar{Q}_{n}^{\star}(A_{i}=a,W_{i})=expit[\epsilon_{n} + logit(\bar{Q}_{n}(A_{i}=a,W_{i})]
+\]
+
+using $H(A_i,W_i)$ as a weight. Note that this is an alternative TMLE to the one we implemented in Casual 1 -- it uses a different parametric submodel and different loss function. Both are valid; however, this implementation can improve stability in the face of practical postivity violations and is thus the default in the \texttt{ltmle} package.
+
+Again, the \texttt{ltmle()} package obtains the standard error for TMLE estimates via the TMLE influence curve, which we can approximate as:
+
+\[
+\hat{IC}_{TMLE}(P_{n}^{\star})(O_i)=\frac{\mathbb{I}(A_i=a)}{g_{n}(A_i=a\vert W)}(Y_i-\bar{Q}_{n}^{\star}(A_i,W_i))+\bar{Q}_{n}^{\star}(A_i=a,W_i)-\hat{\psi}_{(P_{n}^{\star})}
+\]\\
+
+
+We estimate the standard error as the square root of the variance of the efficient influence curve over $n$, at our updated distribution, $P_{n}^{\star}$:
+
+\[
+\hat{SE}_{TMLE}=\frac{\hat{\sigma}\left(\hat{IC}_{TMLE}(P_{n}^{\star})\right)}{\sqrt{n}}
+\]
+
+and form the $95\%$ confidence interval:
+\[
+\hat{\psi}_{n, TMLE}(P_{n})\pm 1.96\times \hat{SE}_{TMLE}
+\]
+
+Again, for comparison we will also implement the non-parametric bootstrap.
+
+\end{enumerate}
+
+
+\section{Estimating treatment specific mean using \texttt{ltmle()} for g-computation, IPTW, and TMLE estimators}
+
+The \texttt{ltmle()} package implements all of the above estimators and their corresponding confidence intervals for the treatment specific mean, risk difference, risk ratio and odds ratio. By default, the \texttt{ltmle()} function will compute IPTW and TMLE estimates with inference as described above.
+
+\begin{enumerate}
+\item \textbf{Obtain estimates of the treatment specific mean under the intervention A(1) = 1 using TMLE and IPTW.} That is, use the \texttt{ltmle()} function to obtain IPTW and TMLE estimates for $E[Y_{a(1)=1}]$ (i.e., the counterfactual mean test score forcing all students to get 8 or more hours of sleep on the first night of the study). Specify the following arguments:
+\begin{packed_item}
+\item[-]\texttt{data = ObsData}
+\item[-] the relevant nodes (created above)
+\item[-] \texttt{abar = 1} to specify the intervention of interest
+\item[-] \texttt{variance.method = "ic"} to estimate variance from the influence curve. \\
+\emph{Note}: the default \texttt{variance.method = "tmle"} gives a more robust variance estimate in the case of practical positivity violations, but it's slower and more complex (feel free to try it out! :) ).
+\end{packed_item}
+Store this result as the object \texttt{results.ltmle1}.
+\item \textbf{Obtain estimates of the treatment specific mean under the intervention A(1) = 1 using g-computation and IPTW.} Again, use the \texttt{ltmle()} function to generate IPTW and g-computation estimates for $E[Y_{a(1)=1}]$. Use the same function specifications as in the previous question, and also specify \texttt{gcomp = TRUE}. Store this result as the object \texttt{results.ltmle2}.
+\item \textbf{Print the summary of results for the TMLE, IPTW and g-computation estimators}. Within the \texttt{summary()} function, specify \texttt{"tmle"} or \texttt{"iptw"} as an argument for \texttt{results.ltmle1}; specify \texttt{"gcomp"} or \texttt{"iptw"} as an argument for \texttt{results.ltmle2}. To see what the \texttt{ltmle()} function returns, look at the help page to the section titled ``Value". This will tell you what kind of objects \texttt{results.ltmle1} and \texttt{results.ltmle2} are and what they contain.
+\item \textbf{Store the g-computation, IPTW, and TMLE estimates of the treatment specific means as objects.} For example, for the g-computation estimate:
+<<eval = F>>=
+PsiHat.gcomp = results.ltmle2$estimates["gcomp"]
+@
+
+<<echo = F>>=
+
+generate_dataA1int = function(n) {
+    
+  # exogenous variables
+  U.L1 = rnorm(n, mean=0, sd=1)
+  U.A1 = runif(n, min=0, max=1)
+  U.L2 = rnorm(n, mean=0, sd=1)
+  U.A2 = runif(n, min=0, max=1)
+  U.L3 = rnorm(n, mean=0, sd=1)
+  U.A3 = runif(n, min=0, max=1)
+  U.L4 = rnorm(n, mean=0, sd=1)
+  U.A4 = runif(n, min=0, max=1)
+  U.Y = rnorm(n, mean=72, sd=3)
+  
+  # endogenous variables
+  L1 = U.L1
+  A1 = 1
+  L2 = A1 + L1 + U.L2
+  A2 = as.numeric(U.A2 < plogis(0.001*(L2+A1 + L1)))
+  L3 = A1 + L1 + A2 + L2 + U.L3
+  A3 = as.numeric(U.A3 < plogis(0.001*(L1 + A1 + L2 + A2 + L3)))
+  L4 = A1 + L1 + A2 + L2 + A3 + L3 + U.L4
+  A4 = as.numeric(U.A4 < plogis(0.001*(L1 + A1 + L2 + A2 + L3 + A3 + L4))) 
+  
+  Y = 0.3*L1 + A1 + 0.5*L2 + A2 + 0.7*L3 + A3 + L4 + A4 - U.Y + 130
+  
+  O = data.frame(L1, A1, L2, A2, L3, A3, L4, A4, Y)
+  
+  return(O)
+}
+
+O = generate_dataA1int(n = 1000000)
+Psi2 = mean(O$Y)
+
+@
+
+The true value of $\Psi(P_{U,X}) = E_{U,X}[Y_{a(1)=1}] = $ \Sexpr{round(Psi2, 4)}. How do the three estimators compare to the true causal parameter value? How would you go about evaluating how well the estimators did at estimating the true parameter value?
+\end{enumerate}
+
+
+
+\section{Non-parametric bootstrapping for inference}
+
+As you may have noticed in the previous section, a warning message came up for the g-computation estimator letting us know inference is based on the TMLE influence curve, and therefore it is not accurate. In this section we are going to use the non-parametric bootstrap to generate variance estimates of the sampling distribution to get inference on the three estimators we calculated above.
+
+Recall that the non-parametric bootstrap approximates resampling from $P_0$ by resampling from the empirical distribution $P_n$. The steps are:
+\vspace{-1em}
+\begin{packed_enum}
+\item Generate a single bootstrap sample by sampling \emph{with replacement} $n$ times from the original sample. This puts a weight of $1/n$ on each resampled observation.
+\item Apply our estimator to the bootstrap sample to obtain a point estimate.
+\item Repeat this process $B$ times. This gives us an estimate of the distribution of our estimator.
+\item Estimate the variance of the estimator across the $B$ bootstrap samples: \[
+\hat{\sigma}^2_{Boot} = \frac{1}{B} \sum_{b=1}^B \bigg(\hat{\Psi}(P_n^b) - \bar{\hat{\Psi}}(P_n^b) \bigg)^2
+\]
+where $P_n^b$ is the $b^{th}$ bootstrap sample from the empirical distribution $P_n$ and $\bar{\hat{\Psi}}(P_n^b)$ is the average of the point estimates across the bootstrapped samples.
+\item Assuming a normal distribution, a 95\% confidence interval is \[
+\hat{\Psi}(P_n) \pm 1.96 \ \hat{\sigma}_{Boot}
+\]
+Alternatively, we can use the 2.5\% and 97.5\% quantiles of the bootstrap distribution.
+\end{packed_enum}
+\emph{Note:} Theory supporting the use of the non-parametric bootstrap relies on 1) the estimator being asymptotically linear at $P_0$ and 2) the estimator not changing behavior drastically if sample from a distribution $P_n$ near $P_0$. 
+
+
+\begin{enumerate}
+\item \textbf{Set \texttt{n} to the number of rows in ObsData}.
+\item \textbf{Set \texttt{B} to the number of bootstrap samples}. When writing the code, set \texttt{B} to 5. Then after we are sure the code is working properly, increase \texttt{B} to 500.
+\item \textbf{Create data frame \texttt{estimates} as an empty matrix with \texttt{B} rows (number of bootstrap estimates) by \texttt{3} columns (for g-computation, IPTW, and TMLE).}
+\item \textbf{Within a \texttt{for} loop from \texttt{b in 1:B}}:
+\begin{enumerate}
+\item Create bootstrap sample \texttt{bootData} by sampling with replacement from the observed data. First, use the \texttt{sample()} function to sample the indices $1,\ldots,n$ with replacement. Then, assign the observed data from the re-sampled subjects to \texttt{bootData}. 
+<<eval=F>>=
+bootIndices = sample(1:n, replace=T) 
+bootData = ObsData[bootIndices,]
+@
+\item Estimate the treatment specific means using the g-computation estimator, IPTW and TMLE.\\
+\emph{Hint:} Copy the relevant code from the previous section, but be sure to change the \texttt{ObsData} to \texttt{bootData} where appropriate.
+\item Save the estimates \texttt{PsiHat.gcomp.b}, \texttt{PsiHat.IPTW.b} and \texttt{PsiHat.TMLE.b} as row \texttt{b} in  matrix \texttt{estimates.} We are appending \texttt{.b} in  order to distinguish the point estimates from the observed data and the point estimates from the bootstrapped samples.
+\end{enumerate}
+%%%%%%%%
+\item \textbf{When you are confident that your code is working, increase the number of bootstrapped samples \texttt{B}  and rerun your code}. Warning: creating \texttt{B=500} bootstrapped samples and running the estimators can take a long time. 
+\item \textbf{Assuming a normal distribution, compute the 95\% confidence interval for the point estimates}.
+\item \textbf{Use the  \texttt{quantiles()} function to obtain the 2.5\% and 97.5\% quantiles of the bootstrap distribution and to compute the 95\% confidence interval for the point estimates}.
+\end{enumerate}
+
+
+
+\section{Incorporating SuperLearner for \texttt{ltmle()}}
+
+So far we have not estimated $g_0$ and $Q_0$ using data adaptive methods. The \texttt{ltmle()} function has an \texttt{SL.library} argument, where one can specify the SuperLearner library used to estimate both $g_0$ and $Q_0$ just as we did in Causal Inference I. This is very important when our model is semi- or non-parametric, which is often the case. 
+
+If SL.library is not specified, then \texttt{ltmle()} just uses \texttt{glm}. In other words, the default is to fit a logistic regression with each past variable as a linear main term. Be careful, as this will not work well if you have an extensive longitudinal data structure (you can quickly get into an overfit of both $g$ and $Q$).
+
+\begin{enumerate}
+\item \textbf{Set the object \texttt{SL.library} to the character vector \texttt{c("SL.glm", "SL.bayesglm", "SL.mean")}}
+\item \textbf{Rerun the estimation of $E[Y_{a=1}]$ from Section 6, specifying the SuperLearner library.}
+\end{enumerate}
+
+
+\section{Estimating additive treatment effect using \texttt{ltmle()} for g-computation, IPTW, and TMLE estimators}
+
+The \texttt{ltmle()} package can estimate the additive treatment effect (if you have a continuous outcome) or the risk difference, risk ratio, and odds ratio (if you have a binary outcome) in just one line of code. Here, we will estimate the additive treatment effect. In order to estimate this quantity, we can implement the same code as the above section; we just need to declare the comparison of two regimens, in this case, $A(1) = 1$ versus
+$A(1) = 0$. This must be entered as a list in the \texttt{abar} argument. Foreshadowing to the last lab: if we had a multiple time point treatment, say three, and we wanted to compare the means under treatment $\bar{A}(3) = (1, 1, 1)$ and control $\bar{A}(3) = (0, 0, 0)$, we would enter \texttt{abar = list(c(1, 1, 1), c(0, 0, 0))} as the argument. \texttt{ltmle()} calls the first item in the list the treatment and the second the control.
+
+\begin{enumerate}
+\item \textbf{Build off of the previous section and use the \texttt{ltmle()} function to estimate the additive treatment effect using IPTW, TMLE, and the g-computation estimators.} Remember to specify the correct regime for the argument \texttt{abar}.
+\item \textbf{Print the summary of each of the three results.}
+\end{enumerate}
+
+
+
+\section{MSMs in the point treatment setting using \texttt{ltmleMSM()}}
+
+<<echo = F>>=
+rexpit = function (x) rbinom(length(x), 1, plogis(x))
+
+generate_dataMSM = function(n) {
+  W1 = rnorm(n)
+  W2 = rnorm(n)
+  A = 1 + rexpit(1 - W1) + rexpit(-2 + 0.3*W1*W2)
+  Y = rexpit(W1 - A + W1*W2*A)
+  data = data.frame(W1, W2, A, Y)
+  return(data)
+}
+
+ObsDataMSM = generate_dataMSM(1000)
+save(ObsDataMSM, file = "ObsDataMSM.RData")
+@
+
+Though the ``l" in ltmle stands for ``longitudinal", we can use the package as we have seen, for simple single time point problems (a special case of causal effects of multiple intervention nodes). We can also use it to construct estimates where there is multi-level treatment in the point treatment setting. When there are more than two levels of treatment, often we can summarize the relationship between levels of treatment and the outcome using an MSM. 
+
+Consider a patient who comes in for a visit where two baseline variables are measured, $W1$ and $W2$. The patient then receives \underline{one of three ``dose" levels of exposure}, denoted by $A$. Then, the presence of disease is ascertained, indicated by the binary variable $Y$, where $Y = 1$ if the disease is present. 
+
+We will use \texttt{ltmleMSM()} to estimate the parameters of the following MSM used to summarize the relationship between exposure category (dose level) and the outcome (disease):
+
+\[
+m(a|\beta) = logit\big(E_{U,X}[Y_a]\big) = logit\big(P_{U,X}(Y_a = 1)\big) =  \beta_0 + \beta_1a
+\]
+
+
+
+\begin{enumerate}
+\item \textbf{Load \texttt{ObsDataMSM.RData}.} You should see a dataframe \texttt{ObsDataMSM} come up in your global environment.
+\item \textbf{Look at the \texttt{head()} and \texttt{summary()} of \texttt{ObsDataMSM} to check out its variables}.
+\item \textbf{Create binary variables \texttt{A1} and \texttt{A2} within \texttt{ObsDataMSM} from all combinations of \texttt{A}.} That is:
+\begin{itemize}
+\item If $A = 1$, then \texttt{A1} = 1 and \texttt{A2} = 0
+\item If $A = 2$, then \texttt{A1} = 0 and \texttt{A2} = 1
+\item If $A = 3$, then \texttt{A1} = 0 and \texttt{A2} = 0
+\end{itemize}
+Remember that the variables of the data used in \texttt{ltmle} must be ordered correctly, so \textbf{reorder the columns of \texttt{ObsDataMSM}}:
+<<eval = F>>=
+ObsDataMSM = ObsDataMSM[, c("W1", "W2", "A1", "A2", "Y")]
+@
+\item \textbf{Create the object \texttt{regimes}, which we will set as the \texttt{regimes} argument in the \texttt{ltmleMSM()} function.} In this example, a regime is a point treatment represented as a multinomial binary vector, but when dealing with longitudinal data, regimes will represent a series of binary treatments. Regimes can be declared in two different ways in \texttt{ltmleMSM()} (implement one of the two below):
+\begin{enumerate}
+\item \textit{Using a three dimensional binary array, setting all $n$ subjects to fixed regimes.} Make a new binary array called \texttt{regimes} using the \texttt{array()} function. Let it have dimensions: $n \times$ number of A nodes $\times$ number of regimes. That is, \texttt{regimes[a, b, c]} is the binary treatment of interest for participant \texttt{a}, at the $\texttt{b}^{th}$ treatment node, for regime \texttt{c}.
+<<echo = F>>=
+regimes = array(dim = c(1000, 2, 3))
+
+for (a in 1:3) {
+  regimes[, 1, a] = as.numeric(a == 1)
+  regimes[, 2, a] = as.numeric(a == 2)
+}
+@
+The first 4 rows should look like this:
+<<>>=
+regimes[1:4, , ] 
+@
+\item \textit{Using ``rule" functions,} which uses the following code: 
+<<eval = F>>=
+regimes = list(function (row) c(1, 0),
+               function (row) c(0, 1),
+               function (row) c(0, 0))
+@
+What \texttt{ltmleMSM()} does here is apply the function to each ID's row for each of the 3 regimes. It is short way of doing what we did in the previous approach. The first function merely sets all ID's regimes to $(1,0)$, giving the equivalent \texttt{regimes[, ,1]} as in the first approach -- and so forth.
+\end{enumerate}
+\item \textbf{Create the object \texttt{summary.measures}, which we will set as the \texttt{summary.measures} argument in the \texttt{ltmleMSM()} function.} 
+\begin{itemize}
+\item[-] The \texttt{summary.measures} argument is a three dimensional array with the following dimensions: number of regimes $\times$ number of summary measures $\times$ number of time points. 
+\item[-] The column names of \texttt{summary.measures} must be named. Make the column name \texttt{"level"} using the \texttt{colnames()} function.
+\item[-] Note: if we specify a working MSM (i.e., insert a formula into the \texttt{working.msm} argument, which we will do next), all of the terms in \texttt{working.msm} must be columns of \texttt{summary.measures} (or baseline covariates). 
+\end{itemize}
+\item \textbf{Create the object \texttt{working.msm}, which we will set as the \texttt{working.msm} argument in the \texttt{ltmleMSM()} function.} Set it equal to the character \texttt{"Y $\sim$ level"}.
+\item \textbf{Run \texttt{ltmleMSM()} to estimate the parameters of the above MSM}, specifying the following arguments: \texttt{data, Anodes, Ynodes, working.msm, regimes, summary.measures, variance.method}. Give results for IPTW, TMLE, and g-computation estimators. As in the previous examples, to implement the g-computation estimator, you will have to call the function again specifying \texttt{gcomp = TRUE}.
+\end{enumerate}
+
+
+
+
+
+
+
+\begin{solution}
+<<>>=
+# 1. load ObsDataMSM function
+load("../ObsDataMSM.RData")
+@
+<<>>=
+# 2. look at head and summary
+head(ObsDataMSM)
+summary(ObsDataMSM)
+@
+<<>>=
+# 3. create A1 and A2 within ObsDataMSM
+ObsDataMSM$A1 = as.numeric(ObsDataMSM$A == 1)
+ObsDataMSM$A2 = as.numeric(ObsDataMSM$A == 2)
+@
+<<>>=
+# reorder data
+ObsDataMSM = ObsDataMSM[, c("W1", "W2", "A1", "A2", "Y")]
+@
+<<>>=
+# check data
+head(ObsDataMSM)
+summary(ObsDataMSM)
+@
+<<>>=
+# 4. create regimes
+# method 1: 3D binary array
+# dimensions: n X number of Anodes X number of regimes
+regimes = array(dim = c(1000, 2, 3))
+
+for (a in 1:3) {
+  regimes[, 1, a] <- as.numeric(a == 1)
+  regimes[, 2, a] <- as.numeric(a == 2)
+}
+@
+<<>>=
+# method 2: rule functions
+regimes = list(function (row) c(1, 0),
+               function (row) c(0, 1),
+               function (row) c(0, 0))
+@
+<<>>=
+# 5. create summary.measures
+# dimensions = 3 regimes X 1 summary measure X 1 time point
+summary.measures = array(1:3, dim = c(3, 1, 1))
+# name column
+colnames(summary.measures) = "level"
+@
+<<>>=
+# 6. create working.msm
+working.msm = "Y ~ level"
+@
+<<>>=
+# 7. run ltmleMSM() with above parameters
+resultsMSM1 = ltmleMSM(data = ObsDataMSM, 
+                      Anodes = c("A1", "A2"), Ynodes = "Y",
+                      regimes = regimes, 
+                      summary.measures = summary.measures, 
+                      variance.method = "ic", 
+                      working.msm = "Y ~ level")
+
+resultsMSM2 = ltmleMSM(data = ObsDataMSM, 
+                            Anodes = c("A1", "A2"), Ynodes = "Y", 
+                            regimes = regimes, 
+                            summary.measures = summary.measures, 
+                            variance.method = "ic",
+                            working.msm = "Y ~ level", 
+                            gcomp = TRUE)
+@
+<<>>=
+summary(resultsMSM1, "iptw")
+summary(resultsMSM1, "tmle")
+summary(resultsMSM2, "gcomp")
+@
+
+
+
+\end{solution}
+
+\pagebreak
+\section{Optional Feedback}
+
+You may attach responses to these questions to your lab. Thank you in advance!
+
+\begin{enumerate}
+\item Did you catch any errors in this lab? If so, where?
+\item What did you learn in this lab?
+\item Do you think that this lab met the goals listed at the beginning? 
+\item What else would you have liked to review? What would have helped your understanding?
+\item Any other feedback?
+\end{enumerate}
+
+
+\end{document}
+
+

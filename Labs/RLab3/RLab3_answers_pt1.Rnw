@@ -1,0 +1,513 @@
+% if you want the answers to appear uncomment the below
+\documentclass[answers]{exam}
+% otherwise uncomment the below
+%\documentclass{exam}
+\usepackage[bottom]{footmisc}
+\usepackage{graphicx}
+\usepackage[letterpaper, margin=.9in]{geometry}
+\usepackage{natbib}
+\bibpunct{(}{)}{;}{a}{,}{,}
+\usepackage{url}
+\def\UrlFont{\rm}
+
+
+\usepackage{Sweave}
+\SweaveOpts{keep.source=TRUE}
+\usepackage[utf8x]{inputenc}
+\usepackage{array}
+\usepackage{verbatim}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+%\usepackage{lineno}
+\setlength{\parskip}{2ex} 
+%\setlength{\parindent}{0ex}
+
+% Cannot place floats in figure environment.
+\usepackage{caption}
+\usepackage{newfloat}
+%\DeclareCaptionListFormat{myliststyle}{#1.#2}
+\DeclareCaptionType{mytype}[Fig.][List of mytype]
+\newenvironment{myfigure}{\captionsetup{type=mytype}}{}
+
+
+
+\newenvironment{packed_enum}{
+\begin{enumerate}
+ \setlength{\itemsep}{0pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}
+}{\end{enumerate}}
+\newenvironment{packed_item}{
+\begin{itemize}
+ \setlength{\itemsep}{0pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}
+}{\end{itemize}}
+
+ \newcommand\independent{\protect\mathpalette{\protect\independenT}{\perp}}
+    \def\independenT#1#2{\mathrel{\setbox0\hbox{$#1#2$}%
+    \copy0\kern-\wd0\mkern4mu\box0}} 
+
+
+\bibliographystyle{plainnat}
+
+\pagestyle{myheadings}
+\markright{Advanced Topics in Causal Inference \hfill  R Lab \#3 \hfill}
+
+
+\title{R Lab 3 Part 1 - Understanding Time Dependent Confounding and Identifiability in Longitudinal Context}
+\author{Advanced Topics in Causal Inference}
+\date{}
+
+\begin{document}
+\maketitle
+
+\SweaveOpts{concordance=TRUE}
+
+\noindent \textbf{Assigned:} September 21, 2021\\
+\textbf{Lab due:} Oct 05, 2021 on bCourses. Please answer all questions and include relevant \texttt{R} code. You are encouraged to discuss the assignment in groups, but should not copy code or interpretations verbatim. Upload your own completed lab to bCourses.
+
+
+
+\noindent \textbf{Last lab:} \\
+Translate causal questions into target causal parameters and intervene on the data generating processes described by Structural Causal Models (SCMs) to evaluate the true value of these parameters. 
+
+
+\noindent \textbf{This lab:}\\
+1. Review the concept of identifiability. \\
+2. Determine which assumptions let us achieve identifiability. \\
+3. Write the target causal parameter (a function of the counterfactual or ``post intervention" distribution) as a function of the observed data distribution. \\
+4. Obtain the value of the statistical estimand. \\
+5. Understand the challenges posed by time-dependent confounding.
+
+\noindent \textbf{Next lab:}\\
+Translate causal questions into target causal parameters for data structures 2 and 4. 
+% Implementation of longitudinal IPTW to estimate the intervention specific mean and the parameters of a marginal structural model.
+
+
+\begin{center}
+\noindent\rule{18cm}{0.4pt}
+\end{center}
+
+\section{Introduction and Motivation}
+
+In previous labs we examined the counterfactual distributions (and parameters of these distributions) of the variables that help us answer our causal questions of interest. 
+
+\noindent In reality, we won't know the counterfactual distribution (e.g., we can't observe exogenous errors or counterfactual outcomes, and we don't know the true data generating process). Instead, we see instances of data generated from the \textit{observed} data distribution.
+
+\noindent So, we now would like to be able to write our target causal parameter as a parameter of our observed data distribution $P_0$. If we can do this, we have achieved \textit{identifiability}. Having defined a target statistical parameter (or estimand), we can estimate it using our observed data (typically in this class, $n$ i.i.d. copies of the observed random variable $O$; coming up in the next lab).
+
+\begin{myfigure}
+\begin{center}
+\includegraphics[width=.3\textwidth]{identification.jpg}
+\caption{Identification.}
+\end{center}
+\end{myfigure}
+
+\section{This lab}
+
+Last time, you wrote down target causal parameters inspired by the causal questions posed to you by your GSR. However, in order to actually evaluate effects of sleep on health and performance outcomes, you'll need to come up with a function of the distribution of the observed data that your professor hands to you. 
+
+%In Causal I, you learned the approach to identifying a target causal parameter as a parameter of the observed data distribution in a point-treatment setting. Specifically, Causal I focused on the randomization assumption/ backdoor criterion. Under this assumption (or adequate data support), causal parameters defined by interventions at a single time point were identified using the point treatment g-computation formula.
+
+\noindent Since you are dealing with studies in which you are interested in the effects of multiple interventions (e.g., cumulative sleep over time), to achieve identifiability, you will need to consider assumptions beyond ones you've learned in the point-treatment setting. 
+
+
+\noindent The first data structure works off of new variable definitions and data generating processes. The last three data structures build off of previous labs: refer back to \texttt{R} Lab 1 for variable definitions and specific data generating processes for data structures 1, 2, and 4.
+
+\subsection{To turn in:}
+
+
+\noindent\fbox{
+    \parbox{\textwidth}{
+
+\textbf{\textit{Note: there are separate questions for Data Structure 0}} \\
+
+\textbf{\underline{For Data Structures 1, 2, and 4, answer the following questions:}} \\
+
+\begin{enumerate}
+\item \textbf{Is the true $P_{U,X}$ an element of (i.e., described by or compatible with) the SCM presented?} Refer back to \texttt{R} Lab 1 for the true $P_{U,X}$.
+\item We will present a target causal parameter. \textbf{Is the target causal parameter (a parameter of $P_{U,X}$) identified (as a parameter of $P_0$) under the standard, point treatment randomization assumption/back door criteria? Why or why not?}
+\item \textbf{If the target parameter is not identified in the previous question, what are the alternative assumptions under which the parameter would be identified?}
+\item \textbf{What is the corresponding statistical estimand, $\Psi(P_0)$, under these assumptions?}
+\end{enumerate}
+
+
+    }
+}
+
+\pagebreak
+\noindent\large\textbf{Data Structure 0: $O = (L(1), A(1), L(2), A(2), Y)$}
+\normalsize
+
+Recall that in Causal I, we learned a common identification result for the expectation of the counterfactual outcome under a \textit{point treatment intervention} (such as the average treatment effect). Specifically, for $O = (W, A, Y)$, under the randomization assumption ($Y_a \perp A|W$), or if $W$ satisfied the back door criteria with respect to the effect of $A$ on $Y$, (together with the positivity assumption) we had the following result:
+\[
+E[Y_a] = \sum_{w}E_0[Y|A=a,W=w] \times P_0(W=w)
+\]
+
+\vspace{-4mm}
+\noindent The right hand side of the equation is called the \textit{point-treatment g-computation formula}. 
+\vspace{3mm}
+
+In the following example we use a simple discrete data structure to illustrate how this identification result can break down in the \textit{longitudinal} setting -- that is, when we are interested in evaluating the effects of interventions on more than one variable. 
+
+
+\noindent\underline{SCM}:
+
+$U=(U_{\bar{L}(2)}, U_{\bar{A}(2)}, U_Y) \sim P_U$ , where we assume all $U$s are independent. 
+
+$X=(L(1), A(1), L(2), A(2), Y)$ 
+
+and $f_X$ is:
+
+\begin{align*}
+L(1)&=f_{L(1)}(U_{L(1)}) \\
+A(1)&=f_{A(1)}(U_{A(1)}, L(1)) \\
+L(2)&=f_{L(2)}(U_{L(2)}, L(1), A(1)) \\
+A(2)&=f_{A(2)}(U_{A(2)}, \bar{L}(2)) \\
+Y&=f_{Y}(U_{Y}, \bar{L}(2), \bar{A}(2))\\
+\end{align*}
+
+\noindent \underline{$P_{U,X}$} (implying one particular joint distribution of $(U, X)$, in other words, is an element of the above SCM):
+\begin{align*}
+\text{Exogenous} & \text{ variables:} \\
+U_{L(t)} \text{ for } t = 1,2 & \sim Uniform(min=0, max=1) \\
+U_{A(t)} \text{ for } t = 1,2 &\sim Uniform(min=0, max=1) \\
+U_{Y} &\sim Uniform(min=0, max=1) \\
+\text{Structural } & \text{equations $F$ and endogenous variables:}  \\
+L(1)& = \mathbb{I}[U_{L(1)}<0.5] \\
+A(1)& = \mathbb{I}[U_{A(1)}<expit(0.3-L(1))]\\
+L(2)& = \mathbb{I}[U_{L(2)}<expit(-2+1.8^*A(1)+2^*L(1))] \\
+A(2)& = \mathbb{I}[U_{A(2)}<expit(L(2)+L(1))] \\
+Y& = \mathbb{I}[U_{Y}<expit(-3+1.3^*A(1)+1.7^*A(2)+1.3^*L(1)+1.7^*L(2))]\\
+\end{align*}
+<<echo = F>>=
+load("../Data structures/DataStructure0.RData")
+@
+And the true value of the target causal parameter of interest is (optional: verify this yourself!):
+\[
+\Psi^F(P_{U,X}) = E_{U,X}[Y_{\bar{a}=1}] = \Sexpr{round(Psi.F0, 4)}
+\]
+
+\noindent Specifically, below we'll show that the point treatment g-computation formula (which conditions on either $L(1)$ and $L(2)$, or on $L(1)$ only) \underline{does not equal} the true value of our longitudinal target causal parameter:
+
+\vspace{2mm}
+
+\begin{enumerate}
+\item \textbf{Generate a large amount of data according to $P_{U,X}$, above.} In \texttt{R}, generate a large number of observations of $O$ (say, $n = 1,000,000$) according to the above data-generating process. 
+
+\item \textbf{If we use the \textit{point-treatment} g-computation formula and condition on $L(1)$ and $L(2)$, what is the statistical estimand $\Psi^{(1)}(P_0)$ equal to? Is it equal to the true value of the target causal parameter?}
+\[
+\Psi^{(1)}(P_0) = \sum_{\bar{l}(2)}E_0[Y|\bar{A}(2) = 1, \bar{L}(2) = \bar{l}(2)] \times P_0\big{(}\bar{L}(2) = \bar{l}(2)\big{)} = \text{ ???}
+\]
+\begin{enumerate}
+\item Notice that the sum of $\Psi^{(1)}(P_0)$ is over every permutation of $\bar{L}(2) = \bar{l}(2)$: 
+\begin{align*}
+\text{Permutation 1} = (L(1) = 1, &L(2) = 1) \\
+\text{Permutation 2} = (L(1) = 1, &L(2) = 0) \\
+\text{Permutation 3} = (L(1) = 0, &L(2) = 1) \\
+\text{Permutation 4} = (L(1) = 0, &L(2) = 0) \\
+\end{align*}
+
+For each of these permutations we need to compute: 
+$$E_0[Y|\bar{A}(2) = 1, \bar{L}(2) = \bar{l}(2)] \times P_0\big{(}\bar{L}(2) = \bar{l}(2)\big{)}$$ 
+We'll demonstrate how to do this for Permutation 1. Then, you can repeat this derivation for all other permutations, using Permutation 1 as a model. Let's break this quantity under Permutation 1 in two parts:
+$$\underbrace{E_0[Y|\bar{A}(2) = 1, \bar{L}(2) = 1]}_\text{\textbf{Part 1}} \times \underbrace{P_0\big{(}\bar{L}(2) = 1\big{)}}_\text{\textbf{Part 2}}$$
+
+
+\vspace{4mm}
+\begin{itemize}
+\item[\textbf{Part}] \textbf{1} Compute $E_0[Y|\bar{A}(2)=1, \bar{L}(2) = 1]$ by subsetting the values of \texttt{Y} for which \texttt{A1, A2, L1,} \textit{and} \texttt{L2} are 1, and take the mean:
+\vspace{2mm}
+<<eval = F>>=
+mean(Y[A1 == 1 & A2 ==1 & L1 == 1 & L2 == 1])
+@ 
+\vspace{4mm}
+\item[\textbf{Part}] \textbf{2} Compute $P_0\big{(}\bar{L}(2) = 1\big{)}$ by obtaining the proportion of times where \texttt{L1} \textit{and} \texttt{L2} are 1: 
+\vspace{2mm}
+<<eval = F>>=
+mean(L1 == 1 & L2 == 1)
+@ 
+\vspace{4mm}
+\end{itemize}
+\item Multiply \textbf{Part 1} and \textbf{Part 2} together.
+\item Repeat this process for all other permutations of $\bar{L}(2)$. Then, sum  all of these quantities together to obtain the statistical estimand, $\Psi^{(1)}(P_0)$.
+\item Is $\Psi^{(1)}(P_0)$ equal to $\Psi^F(P_{U,X})$? Have we achieved identifiability?
+\end{enumerate}
+
+
+\item \textbf{If we use the \textit{point-treatment} g-computation formula and condition on $L(1)$, what is the statistical estimand $\Psi^{(2)}(P_0)$ equal to? Is it equal to the true value of the target causal parameter?} Solve $\Psi^{(2)}(P_0)$ computationally; in other words, use \texttt{R} to evaluate $\Psi^{(2)}(P_0)$, as in the previous problem. \textit{Hint: be sure to sum over the correct permutations!} 
+\[
+\Psi^{(2)}(P_0) = \sum_{l(1)}E_0[Y|\bar{A}(2) = 1, L(1) = l(1)] \times P_0\big{(}L(1) = l(1)\big{)} = \text{ ???}
+\]
+
+
+
+\item \textbf{If we use the \textit{longitudinal} g-computation formula, what is the statistical estimand $\Psi^{(3)}(P_0)$ equal to? Is it equal to the true value of the target causal parameter?} 
+\[
+\Psi^{(3)}(P_0) = \sum_{\bar{l}(2)}E_0[Y | \bar{A}(2)=1, \bar{L}(2) = \bar{l}(2)] \times P_0\big{(}L(2) = l(2) | A(1)=1, L(1) = l(1)\big{)} \times P_0(L(1) = l(1)\big{)} =  \text{ ???}
+\]
+
+\begin{enumerate}
+
+\item \textbf{Solve $\Psi^{(3)}(P_0)$ computationally.} In other words, use \texttt{R} to evaluate $\Psi^{(3)}(P_0)$ (as in the previous two problems).
+
+\item \textbf{Bonus!} Solve $\Psi^{(3)}(P_0)$ analytically. Again, notice that the sum of $\Psi^{(3)}(P_0)$ is over every permutation of $\bar{L}(2) = \bar{l}(2)$. We'll demonstrate how to get started for $(L(1) = 1, L(2) = 1)$. Then, you can repeat this derivation for all other permutations of $\bar{L}(2)$. First, let's break $\Psi^{(3)}(P_0)$ into three parts:
+\[
+\Psi^{(3)}(P_0) = \sum_{\bar{l}(2)}\underbrace{E_0[Y | \bar{A}(2)=1, \bar{L}(2) = \bar{l}(2)]}_\text{\textbf{Part 1}} \times \underbrace{P_0\big{(}L(2) = l(2) | A(1)=1, L(1) = l(1)\big{)}}_\text{\textbf{Part 2}} \times \underbrace{P_0(L(1) = l(1)\big{)}}_\text{\textbf{Part 3}}
+\]
+
+
+\begin{enumerate}
+\item[\textbf{Part}]\textbf{1} Compute $E_0[Y|\bar{A}(2)=1, \bar{L}(2) = 1]$:
+
+\begin{align*}
+E[Y|\bar{A}(2)=1, \bar{L}(2) = 1]  = E[\mathbb{I}[U_{Y}<expit(& -3+1.3^*A(1)+1.7^*A(2) \\
+& + 1.3^*L(1)+1.7^*L(2)] \big{|} \bar{A}(2)=1, \bar{L}(2) = 1] \\
+\intertext{The expectation of an indicator is just the probability that indicator equals 1:}
+ =  P\Big{(}U_{Y}<expit\big{(}& -3+1.3^*A(1)+1.7^*A(2)\\
+ & +1.3^*L(1)+1.7^*L(2)\big{)} \big{|} \bar{A}(2)=1, \bar{L}(2) = 1 \Big{)} \\
+\intertext{Substitute in the constant values we're conditioning on:}
+ = P\Big{(}U_{Y}<expit\big{(}& -3+1.3^*1+1.7^*1 +1.3^*1+1.7^*1\big{)}\Big{)} \\
+\intertext{The probability a uniform random variable between $0$ and $1$ is less than a constant value is just that constant value:}
+ = expit\big{(}&-3+1.3^*1+1.7^*1+ 1.3^*1+1.7^*1\big{)} \\
+\end{align*}
+\item[\textbf{Part}]\textbf{2} Compute $P_0(L(2) = 1 | A(1) = 1, L(1) = 1)$:
+\begin{align*}
+P(L(2) = 1 | A(1) = 1, L(1) = 1) & = P\Big{(}\mathbb{I}[U_{L(2)}<expit(-2+1.8^*A(1)+2^*L(1)) \big{|} A(1) = 1, L(1)] = 1\Big{)} \\
+& =  P\Big{(}\mathbb{I}[U_{L(2)}<expit(-2+1.8^*1+2^*1)] = 1\Big{)} \\
+& =  expit(-2+1.8^*1+2^*1)
+\end{align*}
+\item[\textbf{Part}]\textbf{3}  Compute $P_0(L(1) = 1)$:
+\begin{align*}
+P(L(0) = 1) & = P\big{(}\mathbb{I}[U_{L(1)} < 0.5] = 1\big{)} = 0.5 \\
+\end{align*}
+
+\end{enumerate}
+
+Multiply \textbf{Part 1}, \textbf{Part 2}, and \textbf{Part 3} together.
+
+\vspace{3mm}
+
+\noindent Repeat this process for all other permutations of $\bar{L}(2)$. Then, sum over all of these quantities together to obtain the statistical estimand, $\Psi^{(3)}(P_0)$.
+
+\end{enumerate}
+
+
+\end{enumerate}
+
+\begin{solution}
+
+\begin{enumerate}
+
+\item Solve $\Psi^{(1)}(P_0)$ (recall that in this scenario, we are conditioning on $L(1)$ and $L(2)$):
+
+
+<<>>=
+# set the seed
+set.seed(252)
+@
+<<>>=
+# number of times to generate
+n = 1000000
+@
+<<>>=
+# print data generating process for data structure 0
+print(generate_data0)
+@
+<<>>=
+# save to dataframe ObsData0
+ObsData0 = generate_data0(n)
+@
+<<>>=
+# extract variables
+L1 = ObsData0$L1
+A1 = ObsData0$A1
+L2 = ObsData0$L2
+A2 = ObsData0$A2
+Y = ObsData0$Y
+@
+<<>>=
+# calculate Psi1(P0)
+Psi1.P0 = mean(Y[A1 == 1 & A2 ==1 & L1 == 1 & L2 == 1])*mean(L1 == 1 & L2 == 1) + 
+  mean(Y[A1 == 1 & A2 ==1 & L1 == 1 & L2 == 0])*mean(L1 == 1 & L2 == 0) + 
+  mean(Y[A1 == 1 & A2 ==1 & L1 == 0 & L2 == 1])*mean(L1 == 0 & L2 == 1) + 
+  mean(Y[A1 == 1 & A2 ==1 & L1 == 0 & L2 == 0])*mean(L1 == 0 & L2 == 0) 
+Psi1.P0
+@
+$\Psi^{(1)}(P_0) = $ \Sexpr{round(Psi1.P0, 4)}. Here, $\Psi^{(1)}(P_0) \neq \Psi^F(P_{U,X})$; we have underestimated the target causal parameter. 
+
+\item Solve $\Psi^{(2)}(P_0)$ (recall that in this scenario, we are conditioning on $L(1)$ only):
+<<>>=
+# calculate Psi2(P0)
+Psi2.P0 = mean(Y[A1 == 1 & A2 ==1 & L1 == 1])*mean(L1 == 1) + 
+  mean(Y[A1 == 1 & A2 ==1 & L1 == 0])*mean(L1 == 0) 
+Psi2.P0
+@
+$\Psi^{(2)}(P_0) = $ \Sexpr{round(Psi2.P0, 4)}. Again, $\Psi^{(2)}(P_0) \neq \Psi^F(P_{U,X})$, and we have overestimated the target causal parameter. 
+
+\item Solve for $\Psi^{(3)}(P_0)$ (using longitudinal g-computation formula):
+\begin{enumerate}
+\item Computationally:
+<<>>=
+EY.11 = mean(Y[A1 == 1 & A2 ==1 & L1 == 1 & L2 == 1])*
+  mean(L2[A1 == 1 & L1 == 1])*
+  mean(L1)
+EY.10 = mean(Y[A1 == 1 & A2 ==1 & L1 == 1 & L2 == 0])*
+  (1 - mean(L2[A1 == 1 & L1 == 1]))*
+  mean(L1)
+EY.01 = mean(Y[A1 == 1 & A2 ==1 & L1 == 0 & L2 == 1])*
+  mean(L2[A1 == 1 & L1 == 0])*
+  (1 - mean(L1)) 
+EY.00 = mean(Y[A1 == 1 & A2 ==1 & L1 == 0 & L2 == 0])*
+  (1 - mean(L2[A1 == 1 & L1 == 0]))*
+  (1 - mean(L1))
+Psi3.P0 = EY.11 + EY.10 + EY.01 + EY.00
+Psi3.P0
+@
+\item Analytically: \\
+Continuing for all other permutations of $(L(1), L(2))$...
+\begin{itemize}
+\item[-] Case where $(L(1) = 1, L(2) = 1))$: 
+\begin{align*}
+& E[Y|\bar{A} = 1, L(1) = 1, L(2) = 1]P(L(2) = 1 | A(1) = 1, L(1) = 1)P(L(1) = 1) \\
+& = expit(3)^*expit(1.8)^*0.5 \\
+<<echo = F>>=
+EY.11_comp = plogis(3)*plogis(1.8)*0.5
+@
+& = \Sexpr{round(EY.11_comp, 4)}
+\end{align*}
+\item[-] Case where $(L(1) = 1, L(2) = 0))$:
+\begin{align*}
+& E[Y|\bar{A} = 1, L(1) = 1, L(2) = 0]P(L(2) = 0 | A(1) = 1, L(1) = 1)P(L(1) = 1) \\
+& = expit(1.3)^*(1-expit(1.8))^*0.5 \\
+<<echo = F>>=
+EY.10_comp = plogis(1.3)*(1-plogis(1.8))*0.5
+@
+& = \Sexpr{round(EY.10_comp, 4)}
+\end{align*}
+\item[-] Case where $(L(1) = 0, L(2) = 1))$:
+\begin{align*}
+& E[Y|\bar{A} = 1, L(1) = 0, L(2) = 1]P(L(2) = 1 | A(1) = 1, L(1) = 0)P(L(1) = 0) \\
+& = expit(1.7)^*expit(-0.2)^*0.5\\
+<<echo = F>>=
+EY.01_comp = plogis(1.7)*plogis(-0.2)*0.5
+@
+& = \Sexpr{round(EY.01_comp, 4)}
+\end{align*}
+\item[-] Case where $(L(1) = 0, L(2) = 0))$:
+\begin{align*}
+& E[Y|\bar{A} = 1, L(1) = 0, L(2) = 0]P(L(2) = 0 | A(1) = 1, L(1) = 0)P(L(1) = 0) \\
+& = expit(0)^*(1-expit(-0.2))^*0.5\\
+<<echo = F>>=
+EY.00_comp = plogis(0)*(1-plogis(-0.2))*0.5
+@
+& = \Sexpr{round(EY.00_comp, 4)}
+\end{align*}
+\end{itemize}
+
+Adding these components together we get $\Psi^{(3)}(P_0) = $ \Sexpr{round(EY.11_comp + EY.10_comp + EY.01_comp + EY.00_comp, 4)} 
+\end{enumerate}
+
+We see that $\Psi^{(3)}(P_0)$, which uses the longitudinal g-computation formula, does equal the value of our target causal estimand (assume any difference is due to rounding error). Under the sequential randomization and positivity assumption, this statistical estimand identifies our causal parameter of interest.
+
+Note that the above does not constitute a proof of this identification result - identification implies that this equality will hold for every $P_{U,X}$ compatible with the SCM, and every $P_0$ implied by this $P_{U,X}$. We have just shown that it holds for one such $P_{U,X}$.
+
+\end{enumerate}
+\end{solution}
+
+\pagebreak
+\noindent\large\textbf{Data Structure 1: $O = (W, A, L, \Delta, \Delta Y)$}
+\normalsize
+
+\begin{enumerate}
+\item \underline{SCM}:
+\begin{packed_item}
+\item[] $U = (U_{W}, U_{A}, U_{L}, U_{\Delta}, U_{Y}) \sim P_U$. Assume $U$s are jointly independent.
+\item[] Structural equations, $F$:
+\begin{align*}
+W& = f_{W}(U_{W}) \\
+A & = f_A(W, U_{A}) \\
+L & = f_L(W, A, U_{L}) \\
+\Delta & = f_{\Delta}(W, A, L, U_{\Delta}) \\
+Y & = f_{Y}(W, A, L, U_{Y})
+\end{align*}
+\end{packed_item}
+\textbf{Is the true $P_{U,X}$ described by the SCM presented?} Refer back to the first data structure of \texttt{R} Lab 1 for the true $P_{U,X}$.
+\item \underline{Target causal parameter}:
+\[
+\Psi^F(P_{U,X}) = E_{U,X}[Y_{a=0, \Delta=1}]
+\]
+\textbf{Is this target causal parameter (a parameter of $P_{U,X}$) identified (as a parameter of $P_0$) under the standard, point treatment randomization assumption/back door criteria? Why or why not?}
+\item \textbf{If the target parameter is not identified in the previous question, what are the alternative assumptions under which the parameter would be identified?} 
+\item \textbf{What is the corresponding statistical estimand, $\Psi(P_0)$, under these assumptions?}
+\end{enumerate}
+
+
+
+
+
+
+
+
+
+
+\begin{solution}
+\begin{enumerate}
+\item $P_{U,X}$ is described by the SCM. An SCM is a model on the set of possible data generating processes. The data generating process (i.e., $P_{U,X}$) we wrote down in \texttt{R} Lab 1 is an element (a specific instance) of our SCM written above.
+
+\item The point treatment backdoor criteria here would require one set of covariates that blocks backdoor paths from the joint intervention $(A, \Delta)$ to $Y$ \textit{and} does not include descendants of $(A, \Delta)$. Our two options are:
+
+\begin{itemize}
+\item[-] Conditioning on $W$. Here, the backdoor criteria fails because there is a backdoor path from $\Delta \leftarrow L \rightarrow Y$ and $(Y_{a=0, \Delta =1} \not\!\perp\!\!\!\perp (A, \Delta) | W$). Thus, our target causal parameter $E_{U,X}[Y_{a=0, \Delta = 1}] \neq E_0[E_0[Y|A = 0, \Delta = 1, W]]$. Informally, if we fail to adjust for $L$, we have informative missingness.
+\item[-] Conditioning on $W$ and $L$. Here, the backdoor criteria fails because $L$ is affected by $A$. Thus, our target causal parameter $E_{U,X}[Y_{a=0, \Delta = 1}] \neq E_0[E_0[Y|A=0,\Delta=1,W,L]]$. This is because the right hand side of the inequality is integrating with respect to the observed distribution of $L$, rather than the counterfactual distribution under an intervention to set $A=0$. Informally, if we just condition on $L$ in a single regression, we lose part of the effect of $A$ on $Y$.
+\end{itemize}
+
+Thus, the target causal parameter is \textit{not} identified using the point treatment g-computation formula.
+
+\item Alternative assumptions sufficient to identify the target causal parameter:
+
+\begin{itemize}
+\item[-] Sequential randomization assumption (and corresponding sequential backdoor criteria): 
+\begin{align*}
+Y_{a=0,\Delta = 1} & \perp A|W \\
+Y_{a=0, \Delta = 1} & \perp \Delta | W, L, A=0
+\end{align*}
+\item[-] Positivity assumption
+\begin{align*}
+P_0(A = 0|W = w) & > 0 - a.e.\\
+P_0(\Delta = 1 | W = w, L = l, A = 0) & > 0 - a.e. \\
+\end{align*}
+\end{itemize}
+
+\item Under the above assumptions, the target causal parameter is equal to a function of the observed data distribution. Specifically:
+\begin{align*}
+E_{U,X}[Y_{a=0, \Delta = 1}] & = \sum_{w, l}E_0[Y|A=0,\Delta=1,W=w,L=l]P_0(L=l|A=0,W=w)P_0(W=w) \\
+\end{align*}
+
+
+\end{enumerate}
+
+\end{solution}
+
+\pagebreak
+
+
+\section{Feedback}
+
+Please attach responses to these questions to your lab. Thank you in advance!
+
+\begin{enumerate}
+\item Did you catch any errors in this lab? If so, where?
+\item Was there enough group time to work on each question?
+\item What did you learn in this lab?
+\item Do you think that this lab met the goals listed at the beginning? 
+\item What else would you have liked to review? What would have helped your understanding?
+\item Any other feedback?
+\end{enumerate}
+
+
+
+\end{document}
+
+

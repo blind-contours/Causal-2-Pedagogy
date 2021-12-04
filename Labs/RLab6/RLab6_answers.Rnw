@@ -1,0 +1,1141 @@
+% if you want the answers to appear uncomment the below
+\documentclass[answers]{exam}
+% otherwise uncomment the below
+% \documentclass{exam}
+
+\usepackage{graphicx}
+\usepackage[letterpaper, margin=.9in]{geometry}
+\usepackage{natbib}
+\bibpunct{(}{)}{;}{a}{,}{,}
+\usepackage{url}
+\def\UrlFont{\rm}
+
+\usepackage{Sweave}
+\SweaveOpts{keep.source=TRUE}
+\usepackage[utf8x]{inputenc}
+\usepackage{array}
+\usepackage{verbatim}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+%\usepackage{lineno}
+\setlength{\parskip}{2ex} 
+%\setlength{\parindent}{0ex}
+
+% Cannot place floats in figure environment.
+\usepackage{caption}
+\usepackage{newfloat}
+%\DeclareCaptionListFormat{myliststyle}{#1.#2}
+\DeclareCaptionType{mytype}[Solution Fig.][List of mytype]
+\newenvironment{myfigure}{\captionsetup{type=mytype}}{}
+
+
+
+\newenvironment{packed_enum}{
+\begin{enumerate}
+ \setlength{\itemsep}{0pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}
+}{\end{enumerate}}
+\newenvironment{packed_item}{
+\begin{itemize}
+ \setlength{\itemsep}{0pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}
+}{\end{itemize}}
+
+ \newcommand\independent{\protect\mathpalette{\protect\independenT}{\perp}}
+    \def\independenT#1#2{\mathrel{\setbox0\hbox{$#1#2$}%
+    \copy0\kern-\wd0\mkern4mu\box0}} 
+
+
+\bibliographystyle{plainnat}
+
+\pagestyle{myheadings}
+\markright{Advanced Topics in Causal Inference \hfill  R Lab \#6 \hfill}
+
+
+\title{R Lab 6 - Estimation, Part II: parametric g-computation, ICE representation of g-formula, and TMLE for intervention specific mean}
+\author{Advanced Topics in Causal Inference}
+\date{}
+
+
+\begin{document}
+\maketitle
+
+\SweaveOpts{concordance=TRUE}
+
+\maketitle
+\noindent \textbf{Assigned:} November 2, 2021\\
+\textbf{Lab due:} November 10, 2021 on bCourses. Please answer all questions and include relevant \texttt{R} code. You are encouraged to discuss the assignment in groups, but should not copy code or interpretations verbatim. Upload your own completed lab to bCourses.
+
+
+
+\noindent \textbf{Last lab:} \\ 
+Introduction to \texttt{ltmle} package.\\
+
+
+\noindent \textbf{Goals for this lab:} \\
+1. Implement the ``traditional" longitudinal parametric g-computation estimator \\
+2. Implement the g-computation estimator based on the ICE representation of the longitudinal g-computation formula. \\
+3. Implement TMLE based on the ICE representation of the longitudinal g-computation formula (by hand). \\
+
+
+\noindent \textbf{Next lab:}\\
+TMLE for intervention specific mean, MSM, and dynamic regimes using the \texttt{ltmle} package.
+
+\begin{center}
+\noindent\rule{18cm}{0.4pt}
+\end{center}
+
+\section{Introduction and Motivation}
+
+
+
+Recall that in \texttt{R} Lab 3, we showed that under certain sequential randomization and positivity assumptions, we can write our target causal parameter, $\Psi(P_{U,X})$, as a parameter of our observed data distribution, $\Psi(P_0)$. Specifically:
+
+\[
+\underbrace{E_{U,X}[Y_{\bar{a}}]}_{\Psi(P_{U,X})} \overbrace{=}^{\text{SRA and pos.}} \underbrace{\sum_{\bar{l}}\Big{[}E_0[Y|\bar{A} = \bar{a}, \bar{L} = \bar{l}]\times \prod_{t=1}^KP_0[L(t) | \bar{A}(t-1) = \bar{a}(t-1), \bar{L}(t-1) = \bar{l}(t-1)] \Big{]}}_{\Psi(P_0)}
+\]
+
+\noindent $\Psi(P_0)$ in this equation is called the longitudinal g-computation formula, and in this lab we will estimate this statistical parameter using the following three methods:
+
+\begin{enumerate}
+\item \textbf{\underline{Parametric g-computation estimator}} - going forwards in time, we estimate the conditional distribution/density of non-intervention nodes, given the past, and plug those estimates into the parameter mapping $\Psi(P_0)$.
+\begin{enumerate}
+\item Estimate $\bar{Q}(L(t)|\bar{L}(t-1), \bar{A}(t-1))$ the conditional distribution/density of each $L(t)$ given its past parents, for $t = 1,...,K$
+\item Use these estimates of $\bar{Q}(L(t)|\bar{L}(t-1), \bar{A}(t-1))$ to ``simulate counterfactual covariate histories'' over time, setting $A(t) = a(t)$ for $t = 1,...,K$
+\item Repeat this many times for each treatment of interest
+\item Summarize these regime-specific estimates according to the parameter of interest
+\end{enumerate}
+\item \textbf{\underline{ICE}} - this estimator is the g-computation formula represented as a series of iterated conditional expectations (ICEs). Essentially, we fit a series of regressions going backwards in time, where each regression uses the regression before it (evaluated at the treatment history of interest) as its outcome. 
+\begin{enumerate}
+\item At $t = K+1$: estimate $\bar{Q}_{K+1}(\bar{a}(K), \bar{L}(K))$
+\begin{itemize}
+\item[-] In other words, $E[Y|\bar{L}(K), \bar{A}(K) = \bar{a}(K)]$
+\end{itemize}
+\item At $t = K$: estimate $\bar{Q}_{K}(\bar{a}(K-1), \bar{L}(K-1))$ by using the estimated $\bar{Q}_{K+1}(\bar{a}(K), \bar{L}(K))$ as an outcome and regressing it on $\bar{L}(K-1), \bar{A}(K-1) = \bar{a}(K-1)$
+\begin{itemize}
+\item[-] In other words, take the expectation of $E[Y|\bar{L}(K), \bar{A}(K) = \bar{a}(K)]$ with respect to the distribution of $L(K)$ given $\bar{L}(K-1)$ and $\bar{A}(K-1) = \bar{a}(K-1)$
+\item[-] Also denoted $E\big{[}E[Y|\bar{L}(K), \bar{A}(K) = \bar{a}(K)] | \bar{L}(K-1), \bar{A}(K-1) = \bar{a}(K-1)\big{]}$
+\end{itemize}
+\item $\ldots$
+\item At $t = 2$: estimate $\bar{Q}_2(a(1), L(1))$ by using $\bar{Q}_{3}(\bar{a}(2), \bar{L}(2))$ as an outcome and regressing it on $L(1), A(1) = a(1)$
+\begin{itemize}
+\item[-] In other words, take the expectation of $E\Big{[}\ldots\big{[}E[E[Y|\bar{L}(K), \bar{A}(K) = \bar{a}(K)] | \bar{L}(K-1), \bar{A}(K-1) = \bar{a}(K-1)]\big{]}\ldots\Big{]}$ with respect to the distribution of $L(2)$ given $L(1)$ and $A(1) = a(1)$ 
+\end{itemize}
+\item Plug in the estimate of $\bar{Q}_2(a(1), L(1))$ into the parameter mapping $\Psi(P_0)$, i.e., take the empirical mean of the estimated $\bar{Q}_2(a(1), L(1))$
+\end{enumerate}
+\item \textbf{\underline{TMLE}} - similar to the ICE g-computation estimator, except that we update each regression at time $t$ before using it as an outcome for the next regression corresponding to time $t-1$.
+\begin{enumerate}
+\item At $t = K+1$
+\begin{enumerate}
+\item Estimate $\bar{Q}^0_{K+1}(\bar{a}(K), \bar{L}(K))$.
+\item Target initial estimate of $\bar{Q}^0_{K+1}(\bar{a}(K), \bar{L}(K))$ and update to $\bar{Q}^\star_{K+1}(\bar{a}(K), \bar{L}(K))$  by ``cleverly" incorporating an estimate of the treatment mechanism at $K$, $\prod_{j=1}^Kg(A(j)|\bar{A}(j-1),\bar{L}(j))$
+\end{enumerate}
+\item At $t = K$
+\begin{enumerate}
+\item Using $\bar{Q}^\star_{K+1}(\bar{a}(K), \bar{L}(K))$ as an outcome, estimate $Q^0_K(\bar{a}(K-1), \bar{L}(K-1))$. 
+\item Target $\bar{Q}_n,K(\bar{a}(K-1), \bar{L}(K-1))$ and update to $\bar{Q}^\star_K(\bar{a}(K-1), \bar{L}(K-1))$ by ``cleverly" incorporating an estimate of the treatment mechanism at $K-1$, $\prod_{j=1}^{K-1}g(A(j)|\bar{A}(j-1),\bar{L}(j))$
+\end{enumerate}
+\item \ldots
+\item At $t = 2$
+\begin{enumerate}
+\item Using $\bar{Q}^\star_3(\bar{a}(2), \bar{L}(2))$ as an outcome, estimate $\bar{Q}^0_2(a(1), L(1))$.
+\item Target $\bar{Q}^0_2(a(1), L(1))$ and update to $Q^\star_2(a(1), L(1))$ by ``cleverly" incorporating the treatment mechanism at time 1, $g(A(1)|L(1))$
+\end{enumerate}
+\item Plug in the targeted estimate of $\bar{Q}^\star_2(a(1), L(1))$ into the parameter mapping $\Psi(P_0)$, i.e., take the empirical mean of $\bar{Q}^\star_2(a(1), L(1))$
+
+\end{enumerate}
+
+\end{enumerate}
+
+\begin{figure}
+\begin{center}
+\includegraphics[width=.4\textwidth]{Gcomp.png}
+\caption{G-computation.}
+\end{center}
+\end{figure}
+
+\subsection{This lab}
+
+Recall that your GSR gave you data on one-thousand students, which we can treat as 1,000 i.i.d. copies of $O$. In \texttt{R} Lab 4 we used these data to estimate the effects of sleep using the IPTW estimator, and measured the estimator's performance. 
+
+In this lab we are continuing estimation (step 6 of the roadmap) of the effects of sleep by implementing the 3 estimators above. You'll also evaluate the estimators' performance (refer to \texttt{R} Lab 4 for definitions). In this lab, again you will answer questions for two of the data generating systems we've been working with in previous labs. 
+
+\subsection{To turn in:}
+
+
+\noindent\fbox{
+    \parbox{\textwidth}{
+
+\textbf{\underline{For each of the 2 data structures listed below, answer the following questions:}} \\
+
+
+
+\begin{enumerate}
+\item \textbf{Implement: (1) traditional longitudinal parametric g-computation estimator, (2) g-computation estimator based on the ICE representation of the longitudinal computation formula, (3) TMLE based on ICE representation of longitudinal g-computation}. 
+\item \textbf{Compare performance metrics of each of the estimators}. Specifically, evaluate the bias, variance, and mean-squared error (MSE) of each of the estimators.
+\end{enumerate}
+    
+    }
+}
+
+\pagebreak
+\noindent\large\textbf{Data Structure 0: $O = (L(1), A(1), L(2), A(2), Y)$}
+\normalsize
+<<echo = F>>=
+load("../Data structures/DataStructure0.RData")
+@
+We are interested in the expected $Y$ if everyone got treatment regime $\bar{a}(2) = 1$.
+\[
+\Psi^F(P_{U,X}) = E_{U,X}[Y_{\bar{a}(2)=1}] = P_{U,X}(Y_{\bar{a}(2)=1} = 1) = \Sexpr{round(Psi.F0, 4)}
+\]
+
+\noindent Before we get started with estimation...
+\begin{enumerate}
+\item Load \texttt{DataStructure0.RData} using the \texttt{load()} function. Make sure you have specified the correct file path. You should see 4 new things come up in your global environment:
+
+\begin{packed_item}
+\item[-] \texttt{ObsData0} - this is a dataframe of 1,000 observations that follows Data Structure 0 from the previous lab.
+\item[-] \texttt{Psi.F0} - this is the true $\Psi^F(P_{U,X})$ value for the target causal parameter $E_{U,X}[Y_{\bar{a}(2)=1}]$ (generated in lab 3).
+\item[-] \texttt{generate\_data0} - this is the function that generates $n$ copies of Data Structure 0.
+\item[-] \texttt{generate\_data0\_intervene} - this is the function that generates $n$ intervened-on copies of Data Structure 0. We won't be using this function in this lab, so you can remove it using the \texttt{rm()} function.
+<<>>=
+rm(generate_data0_intervene)
+@
+\end{packed_item}
+
+\item Assign the number of students to \texttt{n}.
+\item Create a new function, \texttt{bound()}, that takes as input a number \texttt{x} and bounds it to be between 0.1 and 1. That is: \texttt{x} is greater than 1, return 1; when \texttt{x} is smaller than 0.01, return .01.
+<<eval = F>>=
+bound = function(x){
+  x[x < 0.01] = 0.01
+  x[x > 1] = 0.99
+  return(x)
+}
+@
+This function will be useful to prevent extreme weights on our clever covariate in the TMLE sections.
+\item Also make sure you have the \texttt{bound()} function (defined in the previous data structure) ready and living in your global environment.
+\end{enumerate}
+
+\begin{solution}
+<<eval = F>>=
+# load ObsData0, Psi.F0, generate_data0
+load("DataStructure0.RData")
+@
+<<>>=
+# set number of observations to the number of rows
+n = nrow(ObsData0)
+@
+<<>>=
+# function that bounds x between 0.01 and 1
+bound = function(x){
+  x[x < 0.01] = 0.01
+  x[x > 1] = 0.99
+  return(x)
+}
+@
+\end{solution}
+
+
+%%%%% PARAMETRIC GCOMP OBSDATA0 %%%%%%%%
+\noindent \textbf{\underline{Parametric g-computation}} - Data Structure 0
+\begin{enumerate}
+\item Create a new function \texttt{param.gcomp0\_fun()} that takes in \texttt{abar} as an argument. Within the function:
+\begin{enumerate}
+\item First, estimate the conditional distributions of all the non-intervention nodes, in this case, $L(1)$, $L(2)$, and $Y$. For this example, we need estimates of:
+\begin{enumerate}
+\item $\bar{Q}(Y|\bar{L}(2), \bar{A}(2))$, or the conditional probability of $Y$, given the past. For example:
+<<eval = F>>=
+Q.Y.reg = glm(Y ~ L1 + A1 + L2 + A2, data = ObsData0, family = "binomial")
+@
+\item $\bar{Q}(L(2)|L(1), A(1))$, or the conditional probability of $L(2)$, given the past.
+\item $\bar{Q}(L(1))$, the baseline covariate distribution. To estimate the distribution of $L(1)$, we can use the empirical distribution. \emph{Hint:} go to the next step!
+\end{enumerate}
+\item Use these estimates to generate (using Monte Carlo simulation) many ``counterfactual" covariate and outcome histories over time, setting $A(t) = a(t)$ for $t = 1,2$.  
+\begin{enumerate}
+\item Set \texttt{S} equal to $10,000$, the number of times we will simulate.
+\item Sample \texttt{S} observations/rows, with replacement, from \texttt{ObsData0}.
+<<eval = F>>=
+ObsData0.MC = ObsData0[sample(1:n, S, replace = T),]
+@
+\item Draw $L_i(1) = l_i(1)$ for each individual. That is, set \texttt{l1} equal to \texttt{L1} that lives within the simulated data:
+<<eval = F>>=
+l1 = ObsData0.MC$L1
+@
+\item Draw $L_i(2) = l_i(2)$ for each individual. 
+\begin{enumerate}
+\item From the estimated conditional distribution of $Q_n(L(2)| L(1), A(1))$, predict the probability of $L(2) = 1$, setting baseline exposure and covariate to $a(1)$ and $l(1)$, respectively. That is:
+<<eval = F>>=
+Q.L2 = predict(Q.L2.reg, 
+                type = "response",
+                newdata = data.frame(L1 = l1,
+                                     A1 = abar[1]))
+@
+\item Because $L(2)$ is binary, for each individual, draw an observation from a $Bernoulli(p_i = \bar{Q}(L_i(2)| L_i(1) = l_i(1), A_i(1) = a_i(1)))$ distribution.
+<<eval = F>>=
+l2 = rbinom(S, size = 1, prob = Q.L2)
+@
+\end{enumerate}
+\item Draw $Y_i = y_i$ for each individual. 
+\begin{enumerate}
+\item From the estimated conditional distribution of $Q_n(Y| \bar{L}(2), \bar{A}(2))$, predict the probability of $Y = 1$, setting time varying exposures and covariates to $\bar{a}(2)$ and $\bar{l}(2)$, respectively.
+\item Because $Y$ is binary, for each individual, draw an observation from a $Bernoulli(p_i = Q_n(Y_i | L_i(1) = l_i(1), A_i(1) = a_i(1), L_i(2) = l_i(2), A_i(2) = a_i(2)))$ distribution.
+\end{enumerate}
+\end{enumerate}
+\item Estimate the probability of $Y=1$ with the empirical proportion of \texttt{y}. Have the function \texttt{param.gcomp0\_fun()} return this value.
+\end{enumerate}
+\item Estimate $E_{U,X}[Y_{\bar{a} = 1}] = P_{U,X}(Y_{\bar{a} = 1} = 1)$ using parametric g-computation by applying \texttt{param.gcomp0\_fun()}, with the correct \texttt{abar} argument specification.
+\end{enumerate}
+
+
+
+\begin{solution}
+<<>>=
+### Estimation of parametric g-computation - ObsData0 ###
+# create function that returns estimate of param. g-comp
+param.gcomp0_fun = function(abar){
+  
+  # Estimate conditional dist of non-intervention nodes #
+  # estimate Q(L(2)|L(1), A(1))
+  Q.L2.reg = glm(L2 ~ L1 + A1, data = ObsData0, family = "binomial")
+  # estimate Q(Y|Lbar(2), Abar(2))
+  Q.Y.reg = glm(Y ~ L1 + A1 + L2 + A2, data = ObsData0, family = "binomial")
+  
+  # number of times to MC simulate
+  S = 10000
+  
+  # sample rows/observations with replacement, S times
+  ObsData0.MC = ObsData0[sample(1:n, S, replace = T),] 
+
+  # draw L1 for each individual
+  l1 = ObsData0.MC$L1
+  
+  # draw L2 for each individual
+  Q.L2 = predict(Q.L2.reg, 
+                 type = "response",
+                 newdata = data.frame(L1 = l1, 
+                                      A1 = abar[1]))
+  l2 = rbinom(S, size = 1, prob = Q.L2)
+  
+  # draw Y for each individual
+  Q.Y = predict(Q.Y.reg, type = "response",
+                newdata = data.frame(L1 = l1, 
+                                     L2 = l2,
+                                     A1 = abar[1], 
+                                     A2 = abar[2]))
+  y = rbinom(S, size = 1, prob = Q.Y)
+  
+  # proportion of simulated Y = 1 is estimate
+  propY = mean(y)
+  
+  return(propY)
+
+}
+@
+<<>>=
+Psi.hat.pgcomp0 = param.gcomp0_fun(abar = c(1,1))
+Psi.hat.pgcomp0
+@
+@
+\end{solution}
+
+%%%%% ICE OBSDATA0 %%%%%%%%
+\noindent\textbf{\underline{ICE g-computation}} - Data Structure 0
+\begin{enumerate}
+\item Create a new function \texttt{ICE.gcomp0\_fun()} that takes in \texttt{abar} as an argument. Within the function:
+\begin{enumerate}
+\item Create a dataframe called \texttt{newdata} where $A(1)$ and $A(2)$ have been set to $a(1)$ and $a(2)$, respectively:
+<<eval = F>>=
+newdata = ObsData0
+newdata$A1 = abar[1]
+newdata$A2 = abar[2]
+@
+\item For time $t = 3$:
+\begin{enumerate}
+\item Regress $Y$ on observed history at time 3 using \texttt{glm()}.
+<<eval = F>>=
+Q3.reg = glm(Y ~ L1 + A1 + L2 + A2, family = "binomial", data = ObsData0)
+@
+\item Generate predicted values of $Y$, evaluated at each observed covariate value and exposure history of interest (i.e., $\bar{L}_i(2) = \bar{l}_i(2)$ and $\bar{A}_i(2) = \bar{a}(2)$, respectively). Set the predicted values equal to \texttt{Q3}.
+<<eval = F>>=
+Q3 = predict(Q3.reg, type = "response", newdata = newdata)
+@
+\end{enumerate}
+\item For time $t = 2$:
+\begin{enumerate}
+\item Using the predicted values from the prior step as a new outcome (i.e., \texttt{Q3}), regress the new outcome on the past at time $2$.
+\item Generate new predicted values, evaluated at each observed covariate value and exposure history of interest (i.e., $L_i(1) = l_i(1)$ and $A_i(1) = a(1)$, respectively)
+\end{enumerate}
+\item Take the empirical mean of the final predicted outcome. This is the value that \texttt{ICE.gcomp0\_fun()} should return.
+\end{enumerate}
+\item Estimate $E_{U,X}[Y_{\bar{a} = 1}] = P_{U,X}(Y_{\bar{a} = 1} = 1)$ using parametric g-computation by applying \texttt{ICE.gcomp0\_fun()}, with the correct \texttt{abar} argument specification.
+\end{enumerate}
+
+\begin{solution}
+<<>>=
+### Estimation of ICE g-computation - ObsData0 ###
+ICE.gcomp0_fun = function(abar){
+  
+  newdata = ObsData0
+  newdata$A1 = abar[1]
+  newdata$A2 = abar[2]
+  
+  # regress Y on observed past
+  Q3.reg = glm(Y ~ ., family = "binomial", data = ObsData0)
+  
+  # generate predicted values of Y at exposure history we want = Q3
+  Q3 = predict(Q3.reg, type = "response", newdata = newdata)
+  
+  # regress Ypred1 on observed past
+  Q2.reg = glm(Q3 ~ A1 + L1, data = ObsData0, family = "quasibinomial")
+  
+  # generate predicted values at exposure history we want = Q2
+  Q2 = predict(Q2.reg, type = "response", newdata = newdata)
+  
+  # mean of Ypred2 is estimate
+  meanQ2 = mean(Q2)
+  
+  return(meanQ2)
+  
+}
+@
+<<>>=
+Psi.hat.ICE0 = ICE.gcomp0_fun(abar = c(1,1))
+Psi.hat.ICE0
+@
+\end{solution}
+
+%%%%% TMLE OBSDATA0 %%%%%%%%
+
+\noindent \textbf{\underline{TMLE}} - Data Structure 0
+\begin{enumerate}
+\item Create a new function \texttt{TMLE.gcomp0\_fun()} that takes in \texttt{abar} as an argument. Within the function:
+\begin{enumerate}
+\item Create a dataframe called \texttt{newdata} where $A(1)$ and $A(2)$ have been set to $a(1)$ and $a(2)$, respectively.
+\item Estimate the probability of receiving treatment $P_0(A(t)=1|\bar{L}(t), \bar{A}(t-1)) = g_0(A(t)=1|\bar{L}(t), \bar{A}(t-1))$ for $t = 1,2$ using correctly specified parametric regression models. The correct model specifications are (refer back to \texttt{R} lab 3 for reference):
+\begin{align*}
+g_0(A(1)=1|L(1)) & = expit[\beta_0 + \beta_1L(1)] \\
+g_0(A(2)=1|\bar{L}(2)) & = expit[\beta_0 + \beta_1L(1) + \beta_2L(2)]
+\end{align*}
+\begin{enumerate}
+\item Use the \texttt{glm()} function, and specify the correct formula following the above model specifications. Also include the arguments \texttt{family = 'binomial'} for logistic regression and \texttt{data = ObsData0}. For example, for $t = 1$:
+<<eval = F>>=
+gA1.reg = glm(A1 ~ L1, family = 'binomial', data = ObsData0)
+@
+Do the same for $t = 2$.
+\item Predict each subject's probability of receiving treatment at time $t$, given his or her observed treatment and covariate history i.e., $g_n(A_i(t)=1|\bar{A}_i(t-1), \bar{L}_i(t))$. Assign to the variables \texttt{g.abar1.1} and \texttt{g.abar2.1} (respectively). For example, for $t = 2$:
+<<eval = F>>=
+g.abar2.1 = predict(gA2.reg, type = "response")
+@
+Do the same for $t = 1$.
+\end{enumerate}
+\item For each timepoint $t = 1, 2$, create a logical variable that indicates which students had a treatment history $\bar{A}(t) = \bar{a}(t)$. For example for $t = 1$:
+<<eval = F>>=
+I1 = ObsData0$A1 == abar[1] 
+@
+Do the same for $t = 2$.
+\item For $t = 3$:
+\begin{enumerate}
+\item Estimate $\bar{Q}^0_{3,n}(\bar{a}(2), \bar{L}(2))$. This is the conditional probability of $Y = 1$ (i.e., \texttt{Q3}), given the past covariates and exposure of interest.
+\begin{enumerate}
+\item Regress $Y$ on the \textit{observed past}:
+<<eval = F>>=
+Q3.reg = glm(Y ~ L1 + A1 + L2 + A2, data = ObsData0, family = "binomial")
+@
+\item Using the above model, predict $\bar{Q}^0_{3,n}$, the conditional probability on the logit scale for all subjects \textit{at the exposure history we want} (i.e., $\bar{A}(2) = \bar{a}(2)$). Call this vector \texttt{logit.Q3}.
+<<eval = F>>=
+logit.Q3 = predict(Q3.reg, type = "link", newdata = newdata)
+@
+\end{enumerate}
+\item Update $\bar{Q}^0_{3,n}(\bar{a}(2), \bar{L}(2))$ to $\bar{Q}^\star_{3,n}(\bar{a}(2), \bar{L}(2))$. 
+\begin{enumerate}
+\item Make the clever covariate, $H_{n,3}(\bar{A}(2), \bar{L}(2)) = \frac{\mathbb{I}[\bar{A}(2) = \bar{a}(2)]}{\prod_{t=1}^2g_n(A(t)|\bar{L}(t), \bar{A}(t-1))}$, where the denominator, $\prod_{t=1}^2g_n(A(t)|\bar{L}(t), \bar{A}(t-1))$, is bounded between 0.01 and 1:
+<<eval = F>>=
+H3 = I2/bound(g.abar1.1 * g.abar2.1)
+@
+\item Fit a logistic regression of $Y$ on the intercept, with $logit(\bar{Q}^0_{3,n})$ as an offset and clever covariate $H_{n,3}(\bar{A}(2), \bar{L}(2))$ as weights:
+<<eval = F>>=
+Q3.reg.update = glm(Y ~ offset(logit.Q3), weights = H3, family = "binomial", 
+                    data = ObsData0)
+@
+\item Generate $\bar{Q}^\star_{3,n}$, the updated predicted probabilities of $\bar{Q}^0_{3,n}$ using the updated model in the previous step:
+<<eval = F>>=
+Q3.star = predict(Q3.reg.update, type = "response")
+@
+\end{enumerate}
+\end{enumerate}
+\item For $t = 2$:
+\begin{enumerate}
+\item Estimate $\bar{Q}^0_{2,n}(a(1), L(1))$. This is the conditional expectation of $\bar{Q}^\star_{3,n}$, given the past covariates and exposure of interest.
+\begin{enumerate}
+\item Regress $\bar{Q}^\star_{3,n}$ on the \textit{observed past}. Call this \texttt{Q2.reg}. Make sure to specify \texttt{data = ObsData0} and \texttt{family = 'quasibinomial'}.
+\item Using the above model, predict $logit(\bar{Q}_{2,n})$, the conditional probabiity on the logit scale for all subjects at the exposure history we want (i.e., $A(1) = a(1)$). Call this vector \texttt{logit.Q2}.
+\end{enumerate}
+\item Update $\bar{Q}^0_{2,n}(a(1), L(1))$ to $\bar{Q}^\star_{2,n}(a(1), L(1))$
+\begin{enumerate}
+\item Make the clever covariate, $H_{n,2}(A(1), L(1)) = \frac{\mathbb{I}[A(1) = a(1)]}{g_n(A(1)|L(1))}$, where $g_n(A(1)|L(1))$ is bounded between 0.01 and 1. Call this \texttt{H2}.
+\item Fit a logistic regression on the intercept, with $logit(\bar{Q}^0_{1,n})$ as an offset and clever covariate $H_{n,2}(A(1), L(1))$ as weights.
+\item Generate $\bar{Q}^\star_{2,n}$, the updated predicted probabilities of $\bar{Q}_{2,n}$ using the updated model in the previous step.
+\end{enumerate}
+\end{enumerate}
+\item Take the mean of $\bar{Q}^\star_{2,n}$. This is your TMLE estimate! Have \texttt{TMLE.gcomp0\_fun()} return this value.
+\end{enumerate}
+\item Estimate $E_{U,X}[Y_{\bar{a} = 1}] = P_{U,X}(Y_{\bar{a} = 1} = 1)$ using TMLE by applying \texttt{TMLE.gcomp0\_fun()}, with the correct \texttt{abar} argument specification.
+\end{enumerate}
+
+\begin{solution}
+<<>>=
+### Estimation of TMLE - ObsData0 ###
+TMLE.gcomp0_fun = function(abar){
+  
+  # newdata at treatment we want
+  newdata = ObsData0
+  newdata$A1 = abar[1]
+  newdata$A2 = abar[2]
+  
+  # estimate treatment mechanism at each point
+  gA1.reg = glm(A1 ~ L1, family = "binomial", data = ObsData0)
+  gA2.reg = glm(A2 ~ L1 + L2, family = "binomial", data = ObsData0)
+  
+  # with above model, compute predicted probability that A(t) = 1, given observed history
+  g.abar1.1 = predict(gA1.reg, type = "response")
+  g.abar2.1 = predict(gA2.reg, type = "response")
+  
+  # indicator of each abar(t) = 1 for t = 1,2
+  I2 = ObsData0$A1 == abar[1] & ObsData0$A2 == abar[2]
+  I1 = ObsData0$A1 == abar[1]
+
+ 
+  ###### t = 3 ######
+  # fit model for E[Q3|Lbar(2), Abar(2)] 
+  Q3.reg = glm(Y ~ L1 + A1 + L2 + A2, data = ObsData0, family = "binomial") 
+  
+  # predict conditional prob of outcome at exposure history we want on logit scale
+  logit.Q3 = predict(Q3.reg, type = "link", newdata = newdata)
+  
+  # make clever covariate
+  H3 = I2/ bound(g.abar1.1 * g.abar2.1)
+  
+  # update E[Q3|Lbar(2), Abar(2)] by running logistic regression
+  # with logit(Q3) as offset and clever covariate H3 as weights
+  Q3.reg.update = glm(Y ~ offset(logit.Q3), weights = H3, family = "binomial", data = ObsData0)
+  
+  # update the predicted probabilities of Q3 using above model
+  Q3.star = predict(Q3.reg.update, type = "response")
+
+  
+  ###### t = 2 ######
+  Q2.reg = glm(Q3.star ~ L1 + A1, data = ObsData0, family = "quasibinomial") 
+  logit.Q2 = predict(Q2.reg, type = "link", newdata = newdata) 
+  H2 = I1 / bound(g.abar1.1)
+  Q2.reg.update = glm(Q3.star ~ offset(logit.Q2), weights = H2, family = "quasibinomial")
+  Q2.star = predict(Q2.reg.update, type = "response")
+  
+  # average of Q2.star is estimate
+  meanQ.star = mean(Q2.star)
+  
+  return(meanQ.star)
+  
+}
+@
+<<>>=
+Psi.hat.TMLE0 = TMLE.gcomp0_fun(abar = c(1,1))
+Psi.hat.TMLE0
+@
+\end{solution}
+
+\noindent\textbf{\underline{Estimator performance metrics}} - Data Structure 0 (refer back to \texttt{R} Lab 4 for bias, variance, and MSE definitions).
+
+\begin{enumerate}
+\item Set the number of iterations \texttt{B} to 5 (to start).
+\item Create a matrix \texttt{estimates\_data0} with \texttt{B} rows and \texttt{3} columns. Name the columns of the matrix \texttt{Param, ICE, TMLE}.
+\item Within a for loop from \texttt{b} to \texttt{1:B}, do the following:
+\begin{enumerate}
+\item Redraw $n$ copies of the data using the \texttt{generate\_data0()} function you loaded earlier, and set equal to the object \texttt{ObsData0}. 
+\item Implement the parametric g-computation, ICE g-computation, and TMLE using the functions \texttt{param.gcomp0\_fun()}, \texttt{ICE.gcomp0\_fun()}, and \texttt{TMLE.gcomp0\_fun()}, respectively, to estimate the causal parameter of interest, making sure you have specified the correct \texttt{abar} vector as an argument for each.
+\item Save the estimates in the $b^{th}$ row of the \texttt{estimates\_data0} matrix.
+\end{enumerate}
+\item When you are confident that your code is working, increase the number of iterations \texttt{B = 500} and rerun your code. \textit{Warning: this may take a long time!}
+\item For each estimator, estimate the:
+\begin{itemize}
+\item[-] Bias. \textit{Hint:} use the \texttt{colMeans()} function.
+\item[-] Variance. \textit{Hint:} use the \texttt{var()} function on the estimates to get the covariance matrix, and take the diagonal of that matrix using the \texttt{diag()} function to get each estimator's variance.
+\item[-] MSE. \textit{Hint:} use the \texttt{colMeans()} function.
+\end{itemize}
+\end{enumerate}
+
+
+\begin{solution}
+<<>>=
+# number of times to run
+B = 500
+@
+<<>>=
+# initialize matrix of estimates with column names
+estimates_data0 = matrix(NA, nrow = B, ncol = 3)
+colnames(estimates_data0) = c("Param", "ICE", "TMLE")
+@
+<<cache=T>>=
+# for loop to generate estimates
+for(b in 1:B){
+  
+  ObsData0 = generate_data0(n)
+  
+  estimates_data0[b,"Param"] = param.gcomp0_fun(abar = c(1,1))
+  estimates_data0[b,"ICE"] = ICE.gcomp0_fun(abar = c(1,1)) 
+  estimates_data0[b,"TMLE"] = TMLE.gcomp0_fun(abar = c(1,1))
+  
+}
+@
+<<>>=
+# Bias
+colMeans(estimates_data0 - Psi.F0)
+
+# Variance
+diag(var(estimates_data0))
+
+# MSE
+colMeans((estimates_data0 -Psi.F0)^2)
+@
+\end{solution}
+
+\pagebreak
+\noindent\large\textbf{Data Structure 2: $O = (L(1), A(1), L(2), A(2), L(3), A(3), L(4), A(4), Y)$}
+\normalsize
+
+<<echo = F>>=
+load("../Data structures/DataStructure2.RData")
+@
+
+We are interested in the difference in the expected test score if all students got 8 or more hours of sleep for all 4 nights before the test versus if all students got less than 8 hours of sleep for all 4 nights before the test is \Sexpr{round(Psi.F2, 4)} points.
+\[
+\Psi^F(P_{U,X}) = E_{U,X}[Y_{\bar{a}(4)=1} - Y_{\bar{a}(4)=0}] = \Sexpr{round(Psi.F2, 4)}
+\]
+
+\noindent Before we get started with estimation...
+\begin{enumerate}
+\item Load \texttt{DataStructure2.RData} using the \texttt{load()} function. Make sure you have specified the correct file path. You should see 6 new things come up in your global environment:
+  
+  \begin{packed_item}
+\item[-] \texttt{ObsData2} - this is a dataframe of 1,000 observations that follows Data Structure 2 from previous labs.
+\item[-] \texttt{Psi.F2} - this is the true $\Psi^F(P_{U,X})$ value for the target causal parameter $E_{U,X}[Y_{\bar{a}(4)=1}] - E_{U,X}[Y_{\bar{a}(4)=0}]$ (generated in lab 2).
+\item[-] \texttt{generate\_data2} - this is the function that generates $n$ copies of Data Structure 2.
+\item[-] \texttt{generate\_data2\_intervene}, \texttt{TrueMSMbeta1}, \texttt{TrueMSMbeta1\_wts} - we won't be using these objects, so you can remove them from your global environment if you'd like.
+\end{packed_item}
+
+\item Assign the number of students to \texttt{n}.
+\item Create the function \texttt{rescale0to1()}, a function that takes as input a vector  of numbers \texttt{Y} and returns the numbers rescaled between 0 and 1:
+<<eval = F>>=
+rescale0to1 = function(Y) {
+  rescaleY = (Y - min(Y))/(max(Y) - min(Y))
+  return(rescaleY)
+}
+@
+We will apply this function on our outcome, $Y$, in the TMLE sections.
+\end{enumerate}
+
+\begin{solution}
+
+<<>>=
+# set n to number of students
+n = nrow(ObsData2)
+@
+<<>>=
+# function that transforms a variable Y to be between 0 and 1
+rescale0to1 = function(Y) {
+  rescaleY = (Y - min(Y))/(max(Y) - min(Y))
+  return(rescaleY)
+}
+@
+\end{solution}
+
+%%%%% PARAMETRIC GCOMP OBSDATA2 %%%%%%%%
+\noindent \textbf{\underline{Parametric g-computation}} - Data Structure 2
+\begin{enumerate}
+\item Create a new function \texttt{param.gcomp2\_fun()} that takes in \texttt{abar} as an argument. Within the function:
+  \begin{enumerate}
+\item First, estimate the conditional distributions of all the non-intervention nodes, in this case, $L(1)$, $L(2)$, $L(3)$, $L(4)$ and $Y$. For this example, we need estimates of:
+  \begin{enumerate}
+\item $\bar{Q}(Y|\bar{L}(4), \bar{A}(4))$, or the conditional expectation of $Y$, given the past. 
+\item $\bar{Q}(L(t)|\bar{L}(t-1), \bar{A}(t-1))$, or the conditional expectation of $L(t)$, given the past, for $t = 2, 3, 4$.
+\item $\bar{Q}(L(1))$, the baseline covariate distribution. To estimate the distribution of $L(1)$, we can use the empirical distribution. \emph{Hint:} go to the next step!
+  \end{enumerate}
+\item Use these estimates to generate (using Monte Carlo simulation) many ``counterfactual" covariate and outcome histories over time, setting $A(t) = a(t)$ for $t = 1,...,4$.  
+\begin{enumerate}
+\item Set \texttt{S} equal to $10,000$, the number of times we will simulate.
+\item Sample \texttt{S} observations/rows, with replacement, from \texttt{ObsData2}.
+\item Draw $L_i(1) = l_i(1)$ for each individual. That is, set \texttt{l1} equal to \texttt{L1} that lives within the simulated data.
+\item Draw $L_i(2) = l_i(2)$ for each individual. 
+\begin{enumerate}
+\item From the estimated conditional distribution of $Q_n(L(2)| L(1), A(1))$, predict the expectation of $L(2)$, setting baseline exposure and covariate to $a(1)$ and $l(1)$, respectively. 
+That is:
+<<eval = F>>=
+Q.L2 = predict(Q.L2.reg, 
+               newdata = data.frame(L1 = l1, 
+                                    A1 = abar[1]))
+@
+\item Because $L(2)$ is continuous, for each individual, draw an observation from a $Normal(\mu_i = \bar{Q}_n(L_i(2) | L_i(1) = l_i(1), A_i(1) = a_i(1)), \sigma_i = \hat{\sigma}_{L(2)})$ distribution.
+<<eval = F>>=
+l2 = rnorm(S, mean = Q.L2, sd = sd(ObsData2$L2))
+@
+\end{enumerate}
+\item Draw $L_i(3) = l_i(3)$ for each individual.
+\begin{enumerate}
+\item From the estimated conditional distribution of $Q_n(L(3)| \bar{L}(2), \bar{A}(2))$, predict the expectation of $L(3)$, setting baseline exposure and covariate to $\bar{a}(2)$ and $\bar{l}(2)$, respectively. 
+\item Because $L(3)$ is continuous, for each individual, draw an observation from a $Normal(\mu_i = \bar{Q}(L_i(3) | \bar{L}_i(2) = \bar{l}_i(2), \bar{A}_i(2) = \bar{a}_i(2)), \sigma_i = \hat{\sigma}_{L(3)})$ distribution.
+\end{enumerate}
+\item Draw $L_i(4) = l_i(4)$ and $Y_i = y_i$ for each individual, extending the steps used to draw $l_i(2)$ and $l_i(3)$ above.
+\end{enumerate}
+\item Estimate the expectation of $Y$ with the empirical mean of \texttt{y}. Have the function \texttt{param.gcomp2\_fun()} return this value.
+\end{enumerate}
+\item Estimate $E_{U,X}[Y_{\bar{a} = 1} - Y_{\bar{a} = 0}]$ using parametric g-computation by applying \texttt{param.gcomp0\_fun()}, with the correct \texttt{abar} argument specifications.
+\end{enumerate}
+
+
+\begin{solution}
+
+<<>>=
+### Estimation of parametric g-computation - ObsData2 ###
+
+param.gcomp2_fun = function(abar){
+  
+  # Estimate conditional dist of non-intervention nodes #
+  # estimate Q(L(2) | L(1), A(1))
+  Q.L2.reg = glm(L2 ~ L1 + A1, data = ObsData2)
+  # estimate Q(L(3) | Lbar(2), Abar(2))
+  Q.L3.reg = glm(L3 ~ L1 + A1 + L2 + A2, data = ObsData2)
+  # estimate Q(L(4) | Lbar(3), Abar(3))
+  Q.L4.reg = glm(L4 ~ L1 + A1 + L2 + A2 + L3 + A3, data = ObsData2)
+
+  # estimate Q(Y | Lbar(4), Abar(4))
+  Q.Y.reg = glm(Y ~ ., data = ObsData2)
+  
+  # number of times to MC simulate
+  S = 10000
+  
+  # sample students/rows with replacement, S times
+  ObsData2.MC = ObsData2[sample(1:n, S, replace = T),]
+  
+  # draw L1 for each individual
+  l1 = ObsData2.MC$L1
+  
+  # draw L2 for each individual
+  Q.L2 = predict(Q.L2.reg, newdata = data.frame(L1 = l1, A1 = abar[1]))
+  l2 = rnorm(S, mean = Q.L2, sd = sd(ObsData2$L2))
+  
+  # draw L3 for each individual
+  Q.L3 = predict(Q.L3.reg, newdata = data.frame(L1 = l1,
+                                                L2 = l2,
+                                                A1 = abar[1],
+                                                A2 = abar[2]))
+  l3 = rnorm(S, mean = Q.L3, sd = sd(ObsData2$L3))
+  
+  # draw L4 for each individual
+  Q.L4 = predict(Q.L4.reg, newdata = data.frame(L1 = l1,
+                                                L2 = l2,
+                                                L3 = l3,
+                                                A1 = abar[1],
+                                                A2 = abar[2],
+                                                A3 = abar[3]))
+  l4 = rnorm(S, mean = Q.L4, sd = sd(ObsData2$L4))
+  
+  # draw Y for each individual
+  Q.Y = predict(Q.Y.reg, newdata = data.frame(L1 = l1,
+                                              L2 = l2,
+                                              L3 = l3,
+                                              L4 = l4,
+                                              A1 = abar[1], 
+                                              A2 = abar[2], 
+                                              A3 = abar[3],
+                                              A4 = abar[4]))
+  y = rnorm(S, mean = Q.Y, sd = sd(ObsData2$Y))
+  
+  # mean of simulated Ys is estimate
+  meanY = mean(y)
+  
+  return(meanY)
+
+}
+@
+
+<<>>=
+Psi.hat.pgcomp2 = param.gcomp2_fun(abar = c(1,1,1,1)) - param.gcomp2_fun(abar = c(0,0,0,0))
+Psi.hat.pgcomp2
+@
+
+\end{solution}
+
+%%%%% ICE OBSDATA2 %%%%%%%%
+\noindent\textbf{\underline{ICE g-computation}} - Data Structure 2
+
+\begin{enumerate}
+\item Create a new function \texttt{ICE.gcomp2\_fun()} that takes in \texttt{abar} as an argument. Within the function:
+\begin{enumerate}
+\item Create a dataframe called \texttt{newdata} where $A(t)$ has been set to $a(t)$ for $t = 1,...,4$:
+<<eval = F>>=
+newdata = ObsData2
+newdata$A1 = abar[1]
+newdata$A2 = abar[2]
+newdata$A3 = abar[3]
+newdata$A4 = abar[4]
+@
+\item Rescale $Y$ from \texttt{ObsData2} to be between 0 and 1 using the \texttt{rescale0to1()} function, and set it equal to the variable \texttt{Y.scaled}.
+\item For time $t = 5$:
+\begin{enumerate}
+\item Regress rescaled $Y$ on \textit{observed history} at time 5 using \texttt{glm()}.
+\item Generate predicted values of rescaled $Y$, evaluated at each observed covariate value and exposure history of interest (i.e., $\bar{L}_i(4) = \bar{l}_i(4)$ and $\bar{A}_i(4) = \bar{a}(4)$, respectively). Set the predicted values equal to \texttt{Q5}.
+\end{enumerate}
+\item For time $t = 4, 3, 2$:
+\begin{enumerate}
+\item Using the predicted values from the prior step as a new outcome, regress the new outcome on the \textit{observed past} at time $t$.
+\item Generate new predicted values, evaluated \textit{at each observed covariate value and exposure history of interest} (i.e., $\bar{L}_i(t-1) = \bar{l}_i(t-1)$ and $\bar{A}_i(t-1) = \bar{a}(t-1)$, respectively).
+\end{enumerate}
+\item Take the empirical mean of the final predicted outcome. This is the value that \texttt{ICE.gcomp2\_fun()} should return.
+\end{enumerate}
+\item Estimate $E_{U,X}[Y_{\bar{a} = 1} - Y_{\bar{a} = 0}]$ using parametric g-computation by applying \texttt{ICE.gcomp2\_fun()}, with the correct \texttt{abar} argument specification.
+\end{enumerate}
+
+\begin{solution}
+<<>>=
+### Estimation of ICE g-computation - ObsData2 ###
+ICE.gcomp2_fun = function(abar){
+  
+  newdata = ObsData2
+  newdata$A1 = abar[1]
+  newdata$A2 = abar[2]
+  newdata$A3 = abar[3]
+  newdata$A4 = abar[4]
+  
+  # rescale Y to be between 0 and 1
+  Y.scaled = rescale0to1(ObsData2$Y)
+  
+  # regress Y on observed past
+  Q5.reg = glm(Y.scaled ~ A1 + A2 + A3 + A4 + L1 + L2 + L3 + L4, data = ObsData2, family = "quasibinomial")
+  
+  # generate predicted values of Y at exposure history we want = Q5
+  Q5 = predict(Q5.reg, newdata = newdata, type = "response")
+  
+  # regress Q5 on observed past
+  Q4.reg = glm(Q5 ~ A1 + A2 + A3 + L1 + L2 + L3, data = ObsData2, family = "quasibinomial")
+  
+  # generate predicted values at exposure history we want = Q4 
+  Q4 = predict(Q4.reg, newdata = newdata, type = "response")
+  
+  # regress Q4 on observed past
+  Q3.reg = glm(Q4 ~ A1 + A2 + L1 + L2, data = ObsData2, family = "quasibinomial")
+  
+  # generate predicted values at exposure levels we want = Q3
+  Q3 = predict(Q3.reg, newdata = newdata, type = "response")
+  
+  # regress Q3 on observed past
+  Q2.reg = glm(Q3 ~ A1 + L1, data = ObsData2, family = "quasibinomial")
+  
+  # generate predicted values at exposure levels we want = Q2
+  Q2 = predict(Q2.reg, newdata = newdata, type = "response")
+  
+  # mean of Ypred4 is estimate
+  meanQ2 = mean(Q2)
+  
+  # back-transform estimate to original scale of Y
+  meanQ.back = meanQ2*(max(ObsData2$Y) - min(ObsData2$Y)) + min(ObsData2$Y)
+  
+  return(meanQ.back)
+  
+}
+@
+<<>>=
+Psi.hat.ICE2 = ICE.gcomp2_fun(abar = c(1,1,1,1)) - ICE.gcomp2_fun(abar = c(0,0,0,0))
+Psi.hat.ICE2
+@
+\end{solution}
+
+%%%%% TMLE OBSDATA2 %%%%%%%%
+
+\noindent \textbf{\underline{TMLE}} - Data Structure 2
+\begin{enumerate}
+\item Create a new function \texttt{TMLE.gcomp2\_fun()} that takes in \texttt{abar} as an argument. Within the function:
+\begin{enumerate}
+\item Create a dataframe called \texttt{newdata} where $A(t)$ has been set to $a(t)$ for $t = 1,...,4$.
+\item Estimate the probability of each person's observed exposure at time $t$, i.e., $P_0(A(t)|\bar{L}(t), \bar{A}(t-1)) = g_0(A(t)|\bar{L}(t), \bar{A}(t-1))$ for $t = 1,...,4$ 
+\begin{enumerate}
+\item First, estimate the probability of receiving treatment at time $t$ $P_0(A(t)=1|\bar{L}(t), \bar{A}(t-1)) = g_0(A(t)=1|\bar{L}(t), \bar{A}(t-1))$ for $t = 1,...,4$ using correctly specified parametric regression models. The correct model specifications are (refer back to \texttt{R} lab 3 for reference):
+\begin{align*}
+g_0(A(1)=1|L(1)) & = expit[\beta_0 + \beta_1L(1)] \\
+g_0(A(2)=1|\bar{L}(2), A(1)) & = expit[\beta_0 + \beta_1L(1) + \beta_2A(1) + \beta_3L(2)] \\
+g_0(A(3)=1|\bar{L}(3), \bar{A}(2)) & = expit[\beta_0 + \beta_1L(1) + \beta_2A(1) + \beta_3L(2) + \beta_4A(2) + \beta_5L(3)] \\
+g_0(A(4)=1|\bar{L}(4), \bar{A}(3)) & = expit[\beta_0 + \beta_1L(1) + \beta_2A(1) + \beta_3L(2) + \beta_4A(2) + \beta_5L(3) + \beta_6A(3) + \beta_7L(4)]
+\end{align*}
+\item Use the \texttt{glm()} function, and specify the arguments \texttt{family = 'binomial'} for logistic regression and \texttt{data = ObsData2}. 
+\item Predict each subject's probability of the exposure at time $t$, given their observed exposure and observed covariate history, i.e., $g_n(A_i(t)=1|\bar{A}_i(t-1), \bar{L}_i(t))$, for $t = 1,...,4$.
+\item Obtain the conditional probabilities of each subject's observed exposure, $g_n(A_i(t) | \bar{A}_i(t-1), \bar{L}_i(t))$. That is, for each timepoint ($t = 1,...,4$):
+\begin{itemize}
+\item[-] Among subjects who got $A(t)=1$ at time $t$, assign the predicted probability as $g_n(A_i(t) = 1| \bar{A}_i(t-1), \bar{L}_i(t))$. 
+\item[-] Similarly, among subjects who got $A(t) = 0$ at time $t$, assign the predicted probability as $g_n(A_i(t) = 0| \bar{A}_i(t-1), \bar{L}_i(t))$.
+\end{itemize}
+For example, for timepoint 1:
+<<eval = FALSE>>=
+g.abar1 = (ObsData2$A1 == 1) * g.abar1.1 + (ObsData2$A1 == 0) * (1 - g.abar1.1)
+@
+Repeat for $t = 2, 3, 4$.
+\end{enumerate}
+\item For each timepoint $t = 1,...,4$, create a logical variable that indicates which students had a treatment history $\bar{A}(t) = \bar{a}(t)$. For example for $t = 1$:
+<<eval = F>>=
+I1 = ObsData2$A1 == abar[1] 
+@
+Do the same for $t = 2, 3, 4$.
+\item For $t = 5$:
+\begin{enumerate}
+\item Rescale $Y$ from \texttt{ObsData2} to be between 0 and 1 using the \texttt{rescale0to1()} function, and set it equal to the variable \texttt{Y.scaled}.
+\item Estimate $\bar{Q}^0_{5,n}(\bar{a}(4), \bar{L}(4))$. This is the conditional expectation of $Y$ (i.e., \texttt{Y.scaled}), given the past covariates and exposure of interest.
+\begin{enumerate}
+\item Regress rescaled $Y$ on the \textit{observed past}, $\bar{A}(4)$ and $\bar{L}(4)$:
+<<eval = F>>=
+Q5.reg = glm(Y.scaled ~ L1 + A1 + L2 + A2 + L3 + A3 + L4 + A4, 
+             data = ObsData2, family = "quasibinomial")
+@
+\item Using the above model, predict $logit(\bar{Q}_{5,n})$, the conditional outcome for all subjects on the logit scale \textit{at the exposure history we want} (i.e., $\bar{A}(4) = \bar{a}(4)$). Call this vector \texttt{logit.Q5}.
+<<eval = F>>=
+logit.Q5 = predict(Q5.reg, type = "link", newdata = newdata)
+@
+\end{enumerate}
+\item Update $\bar{Q}^0_{5,n}(\bar{a}(4), \bar{L}(4))$ to $\bar{Q}^\star_{5,n}(\bar{a}(4), \bar{L}(4))$
+\begin{enumerate}
+\item Make the clever covariate, $H_{n,5}(\bar{A}(4), \bar{L}(4)) = \frac{\mathbb{I}[\bar{A}(4) = \bar{a}(4)]}{\prod_{t=1}^4g_n(A(t)|\bar{L}(t), \bar{A}(t-1))}$, where the denominator $\prod_{t=1}^4g_n(A(t)|\bar{L}(t), \bar{A}(t-1))$ is bounded between 0.01 and 1:
+<<eval = F>>=
+H5 = I4/bound(g.abar1 * g.abar2 * g.abar3 * g.abar4)
+@
+\item Fit a logistic regression of Y on the intercept, with $logit(\bar{Q}^0_{5,n})$ as an offset and clever covariate $H_{n,5}(\bar{A}(4), \bar{L}(4))$ as weight:
+<<eval = F>>=
+Q5.reg.update = glm(Y.scaled ~ offset(logit.Q5), weights = H5, 
+                    family = "quasibinomial")
+@
+\item Generate $\bar{Q}^\star_{5,n}$, the predicted probabilities of the updated model in the previous step:
+<<eval = F>>=
+Q5.star = predict(Q5.reg.update, type = "response")
+@
+\end{enumerate}
+\end{enumerate}
+\item For $t = 4$:
+\begin{enumerate}
+\item Estimate $\bar{Q}^0_{4,n}(\bar{a}(3), \bar{L}(3))$. This is the conditional expectation of $\bar{Q}^\star_{5,n}$ (i.e., \texttt{Q5.star}), given the past covariates and exposure of interest.
+\begin{enumerate}
+\item Regress $\bar{Q}^\star_{5,n}$ on the \textit{observed past}, $\bar{A}(3)$ and $\bar{L}(3)$:
+<<eval = F>>=
+Q4.reg = glm(Q5.star ~ L1 + A1 + L2 + A2 + L3 + A3, 
+             data = ObsData2, family = "quasibinomial")
+@
+\item Using the above model, predict $logit(\bar{Q}_{4,n})$, the conditional outcome for all subjects \textit{at exposure history we want} (i.e., $\bar{A}(3) = \bar{a}(3)$). Call this vector \texttt{logit.Q4}.
+<<eval = F>>=
+logit.Q4 = predict(Q4.reg, newdata = newdata, type = "link")
+@
+\end{enumerate}
+\item Update $\bar{Q}^0_{4,n}(\bar{a}(3), \bar{L}(3))$ to $\bar{Q}^\star_{4,n}(\bar{a}(3), \bar{L}(3))$
+\begin{enumerate}
+\item Make the clever covariate, $H_{n,4}(\bar{A}(3), \bar{L}(3)) = \frac{\mathbb{I}[\bar{A}(3) = \bar{a}(3)]}{\prod_{t=1}^3g_n(A(t)|\bar{L}(t), \bar{A}(t-1))}$, where the denominator $\prod_{t=1}^3g_n(A(t)|\bar{L}(t), \bar{A}(t-1))$ is bounded between 0.01 and 1:
+<<eval = F>>=
+H4 = I3/bound(g.abar1 * g.abar2 * g.abar3)
+@
+\item Fit a logistic regression of $\bar{Q}^\star_{5,n}$ on the intercept, with $logit(\bar{Q}^0_{4,n})$ as an offset and clever covariate $H_{n,4}(\bar{A}(3), \bar{L}(3))$ as weight:
+<<eval = F>>=
+Q4.reg.update = glm(Q5.star ~ offset(logit.Q4), weights = H4, family = "quasibinomial")
+@
+\item Generate $\bar{Q}^\star_{4,n}$, the predicted probabilities of the updated model in the previous step:
+<<eval = F>>=
+Q4.star = predict(Q4.reg.update, type = "response")
+@
+\end{enumerate}
+\end{enumerate}
+\item For $t = 3, 2$:
+\begin{enumerate}
+\item Estimate $\bar{Q}^0_{t,n}(\bar{a}(t-1), \bar{L}(t-1))$. This is the conditional expectation of $\bar{Q}^\star_{t+1,n}$, given the past covariates and exposure of interest.
+\begin{enumerate}
+\item Regress $\bar{Q}^\star_{t+1,n}$ on the \textit{observed past}, $\bar{A}(t-1)$ and $\bar{L}(t-1)$
+\item Using the above model, predict $logit(\bar{Q}_{t,n})$, the conditional outcome on the logit scale for all subjects \textit{at exposure history we want} (i.e., $\bar{A}(t-1) = \bar{a}(t-1)$)
+\end{enumerate}
+\item Update $\bar{Q}^0_{t,n}(\bar{a}(t-1), \bar{L}(t-1))$ to $\bar{Q}^\star_{t,n}(\bar{a}(t-1), \bar{L}(t-1))$
+\begin{enumerate}
+\item Make the clever covariate, $H_{n,t}(\bar{A}(t-1), \bar{L}(t-1)) = \frac{\mathbb{I}[\bar{A}(t-1) = \bar{a}(t-1)]}{\prod_{j=1}^{t-1}g_n(A(j)|\bar{L}(j), \bar{A}(j-1))}$
+\item Fit a logistic regression of $\bar{Q}^\star_{t+1,n}$ on the intercept, with $logit(\bar{Q}^0_{t,n})$ as an offset and clever covariate $H_{n,t}(\bar{A}(t-1), \bar{L}(t-1))$ as weight.
+\item Generate $\bar{Q}^\star_{t,n}$, the predicted probabilities of the updated model in the previous step.
+\end{enumerate}
+\end{enumerate}
+\item Take the mean of $\bar{Q}^\star_{2,n}$ and back-transform this number to the original scale of $Y$. For example, if \texttt{meanQ2.star} is the mean of $\bar{Q}^\star_{2,n}$, this would be the code to back-transform the estimate:
+<<eval = F>>=
+meanQ.star.back = meanQ2.star*(max(ObsData2$Y) - min(ObsData2$Y)) + min(ObsData0$Y)
+@
+This is your TMLE estimate! Have \texttt{TMLE.gcomp2\_fun()} return this value.
+\end{enumerate}
+\item Estimate $E_{U,X}[Y_{\bar{a} = 1} - Y_{\bar{a} = 0}]$ using TMLE by applying \texttt{TMLE.gcomp2\_fun()}, with the correct \texttt{abar} argument specifications.
+\end{enumerate}
+
+\begin{solution}
+<<>>=
+TMLE.gcomp2_fun = function(abar){
+  
+  # create newdata
+  newdata = ObsData2
+  newdata$A1 = abar[1]
+  newdata$A2 = abar[2]
+  newdata$A3 = abar[3]
+  newdata$A4 = abar[4]
+  
+  # estimate treatment mechanism at each point
+  gA1.reg = glm(A1 ~ L1, family = "binomial", data = ObsData2)
+  gA2.reg = glm(A2 ~ L1 + A1 + L2, family = "binomial", data = ObsData2)
+  gA3.reg = glm(A3 ~ L1 + A1 + L2 + A2 + L3, family = "binomial", data = ObsData2)
+  gA4.reg = glm(A4 ~ L1 + A1 + L2 + A2 + L3 + A3 + L4, family = "binomial", data = ObsData2)
+  
+  # with above model, compute predicted probability of getting 8 hrs of 
+  # sleep at time t given observed past
+  g.abar1.1 = predict(gA1.reg, type = "response")
+  g.abar2.1 = predict(gA2.reg, type = "response")
+  g.abar3.1 = predict(gA3.reg, type = "response")
+  g.abar4.1 = predict(gA4.reg, type = "response")
+  
+  # compute predicted probability of observed exposure A(t), given history
+  g.abar1 = g.abar2 = g.abar3 = g.abar4 = rep(NA, length = n)
+  g.abar1 = (ObsData2$A1 == 1) * g.abar1.1 + (ObsData2$A1 == 0) * (1 - g.abar1.1)
+  g.abar2 = (ObsData2$A2 == 1) * g.abar2.1 + (ObsData2$A2 == 0) * (1 - g.abar2.1)
+  g.abar3 = (ObsData2$A3 == 1) * g.abar3.1 + (ObsData2$A3 == 0) * (1 - g.abar3.1)
+  g.abar4 = (ObsData2$A4 == 1) * g.abar4.1 + (ObsData2$A4 == 0) * (1 - g.abar4.1)
+
+  # indicator of each abar(t) = 1 for t = 1,...4
+  I4 = ObsData2$A1 == abar[1] & ObsData2$A2 == abar[2] & ObsData2$A3 == abar[3] & ObsData2$A4 == abar[4]
+  I3 = ObsData2$A1 == abar[1] & ObsData2$A2 == abar[2] & ObsData2$A3 == abar[3]
+  I2 = ObsData2$A1 == abar[1] & ObsData2$A2 == abar[2]
+  I1 = ObsData2$A1 == abar[1]
+  
+  # rescale Y to be between 0 and Y
+  Y.scaled = rescale0to1(ObsData2$Y)
+  
+  ### t = 5 ###
+  # fit model for E[Q5|Lbar(4), Abar(4)] 
+  Q5.reg = glm(Y.scaled ~ L1 + A1 + L2 + A2 + L3 + A3 + L4 + A4, data = ObsData2, family = "quasibinomial") 
+  # predict conditional outcome at exposure history we want on logit scale
+  logit.Q5 = predict(Q5.reg, newdata = newdata, type = "link") 
+  # make clever covariate
+  H5 = I4/ bound(g.abar1 * g.abar2 * g.abar3 * g.abar4)
+  # update E[Y|Lbar(4), abar(4)] by running regression with logit(Q5) as offset 
+  # and clever covariate H5 as weight
+  Q5.reg.update = glm(Y.scaled ~ offset(logit.Q5), weights = H5, family = "quasibinomial")
+  # update the expected value of Q
+  Q5.star = predict(Q5.reg.update, type = "response")
+  
+  ### t = 4 ###
+  Q4.reg = glm(Q5.star ~ L1 + A1 + L2 + A2 + L3 + A3, data = ObsData2, family = "quasibinomial") 
+  logit.Q4 = predict(Q4.reg, newdata = newdata, type = "link") 
+  H4 = I3 / bound(g.abar1 * g.abar2 * g.abar3)
+  Q4.reg.update = glm(Q5.star ~ offset(logit.Q4), weights = H4, family = "quasibinomial")
+  Q4.star = predict(Q4.reg.update, type = "response")
+  
+  ### t = 3 ###
+  Q3.reg = glm(Q4.star ~ L1 + A1 + L2 + A2, data = ObsData2, family = "quasibinomial") 
+  logit.Q3 = predict(Q3.reg, newdata = newdata, type = "link") 
+  H3 = I2 / bound(g.abar1 * g.abar2)
+  Q3.reg.update = glm(Q4.star ~ offset(logit.Q3), weights = H3, family = "quasibinomial")
+  Q3.star = predict(Q3.reg.update, type = "response")
+  
+  ### t = 2 ###
+  Q2.reg = glm(Q3.star ~ L1 + A1, data = ObsData2, family = "quasibinomial") 
+  logit.Q2 = predict(Q2.reg, newdata = newdata, type = "link") 
+  H2 = I1 / bound(g.abar1)
+  Q2.reg.update = glm(Q3.star ~ offset(logit.Q2), weights = H2, family = "quasibinomial")
+  Q2.star = predict(Q2.reg.update, type = "response")
+  
+  # average of Q2.star is estimate
+  meanQ2.star = mean(Q2.star)
+  
+  # back-transform estimate to original scale of Y
+  meanQ.star.back = meanQ2.star*(max(ObsData2$Y) - min(ObsData2$Y)) + min(ObsData2$Y)
+  
+  return(meanQ.star.back)
+  
+}
+
+@
+<<>>=
+Psi.hat.TMLE2 = TMLE.gcomp2_fun(abar = c(1,1,1,1)) - TMLE.gcomp2_fun(abar = c(0,0,0,0))
+Psi.hat.TMLE2
+@
+
+\end{solution}
+
+\noindent\textbf{\underline{Estimator performance metrics}} - Data Structure 2 (refer back to \texttt{R} Lab 4 for bias, variance, and MSE definitions).
+
+\begin{enumerate}
+\item Set the number of iterations \texttt{B} to 5 (to start).
+\item Create a matrix \texttt{estimates\_data2} with \texttt{B} rows and \texttt{3} columns. Name the columns of the matrix \texttt{Param, ICE, TMLE}.
+\item Within a for loop from \texttt{b} to \texttt{1:B}, do the following:
+\begin{enumerate}
+\item Redraw $n$ copies of the data using the \texttt{generate\_data2()} function you loaded earlier, and set equal to the object \texttt{ObsData2}. 
+\item Implement the parametric g-computation, ICE g-computation, and TMLE using the functions \texttt{param.gcomp2\_fun()}, \texttt{ICE.gcomp2\_fun()}, and \texttt{TMLE.gcomp2\_fun()}, respectively, to estimate the causal parameter of interest, making sure you have specified the correct \texttt{abar} vector as an argument for each.
+\item Save the estimates in the $b^{th}$ row of the \texttt{estimates\_data2} matrix.
+\end{enumerate}
+\item When you are confident that your code is working, increase the number of iterations \texttt{B = 500} and rerun your code. 
+\item For each estimator, estimate the bias, variance, and MSE.
+\end{enumerate}
+
+\begin{solution}
+<<>>=
+# number of times to run
+B = 500
+@
+<<>>=
+# initialize matrix of estimates with column names
+estimates_data2 = matrix(NA, nrow = B, ncol = 3)
+colnames(estimates_data2) = c("Param", "ICE", "TMLE")
+@
+<<cache = T>>=
+# for loop to generate estimates
+for(b in 1:B){
+  
+  ObsData2 = generate_data2(n)
+  
+  estimates_data2[b,"Param"] = param.gcomp2_fun(abar = c(1,1,1,1)) - param.gcomp2_fun(abar = c(0,0,0,0))
+  estimates_data2[b,"ICE"] = ICE.gcomp2_fun(abar = c(1,1,1,1)) - ICE.gcomp2_fun(abar = c(0,0,0,0))
+  estimates_data2[b,"TMLE"] = TMLE.gcomp2_fun(abar = c(1,1,1,1)) - TMLE.gcomp2_fun(abar = c(0,0,0,0))
+}
+
+# Bias
+colMeans(estimates_data2 - Psi.F2)
+
+# Variance
+diag(var(estimates_data2))
+
+# MSE
+#colMeans((estimates_data2 -Psi.F2)^2)
+(colMeans(estimates_data2 - Psi.F2))^2 + diag(var(estimates_data2))
+
+@
+
+\end{solution}
+
+\pagebreak
+\section{For Your Project: Estimation via forms of g-computation}
+
+Think through the following questions and apply them to the dataset you will use for your final project.
+
+\begin{enumerate}
+\item Implement the parametric g-computation, ICE representation of g-computation, and TMLE estimators on your real data and simulated data.
+\item For the simulated data only: obtain bias, variance, MSE for the three estimators based on the true value of the causal parameter you generated in \texttt{R} Lab 2.
+\end{enumerate}
+
+
+\pagebreak
+\section{Optional Feedback}
+
+You may attach responses to these questions to your lab. Thank you in advance!
+
+\begin{enumerate}
+\item Did you catch any errors in this lab? If so, where?
+\item What did you learn in this lab?
+\item Do you think that this lab met the goals listed at the beginning? 
+\item What else would you have liked to review? What would have helped your understanding?
+\item Any other feedback?
+\end{enumerate}
+
+
+\end{document}
+
+

@@ -1,0 +1,87 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1404\cocoasubrtf470
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+\margl1440\margr1440\vieww16260\viewh12440\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 %%%%%%%%% DS 3 %%%%%%%%%%%\
+\
+\\noindent\\large\\textbf\{Data Structure 3: $O = (L(1), A(1), Y(2), L(2), A(2), Y(3))$\}\
+\
+\\normalsize\
+\
+<<echo = F>>=\
+load("DataStructure3.RData")\
+@\
+\
+\\noindent\\underline\{Causal question:\} How would the counterfactual probability of becoming sick differ by the time of the test under an intervention to get 8 or more hours of sleep for 2 nights before a statistics test versus an intervention to get less than 8 hours of sleep for 2 nights before a statistics test? \
+\
+\\noindent\\underline\{Causal parameter:\}\
+\\begin\{align*\}\
+\\Psi^F(P_\{U,X\}) = & E[Y(3)_\{\\bar\{a\}(2) = 1\}] - E[Y(3)_\{\\bar\{a\}(2) = 0\}] \\\\\
+= & P\\big(Y(3)_\{\\bar\{a\}(2) = 1\} = 1\\big) - P\\big(Y(3)_\{\\bar\{a\}(2) = 0\} = 1\\big) = \\Sexpr\{round(Psi.F3, 4)\}\
+\\end\{align*\}\
+\
+The counterfactual $Y(3)_\{\\bar\{a\}(2)\}$ is the student's illness status on day 3 of the study if, possibly contrary to fact, the student's sleep status was $\\bar\{A\}(2)=\\bar\{a\}(2)$. The causal parameter is equal to \\Sexpr\{round(Psi.F3, 2)*100\}\\%, which is the difference in counterfactual probability of getting sick if all students got 8 or more hours of sleep for both nights ($\\bar\{A\}(2) = 1$) minus the counterfactual probability of getting sick if all SPH students got fewer than 8 hours of sleep for both nights ($\\bar\{A\}(2) = 0$). \
+\
+\\begin\{enumerate\}\
+\\item Load \\texttt\{DataStructure3.RData\}. Three things should come up in your global environment:\
+\\begin\{packed_item\}\
+\\item[-] \\texttt\{ObsData3\} - this is a dataframe of 1,000 observations that follows Data Structure 3.\
+\\item[-] \\texttt\{Psi.F3\} - this is the true $\\Psi^F(P_\{U,X\})$ value for the target causal parameter $P\\big(Y(3)_\{\\bar\{a\}(2) = 1\} = 1\\big) - P\\big(Y(3)_\{\\bar\{a\}(2) = 0\} = 1\\big)$ (generated in lab 3).\
+\\item[-] \\texttt\{generate\\_data3\} - this is the function that generates $n$ copies of Data Structure 3.\
+\\end\{packed_item\}\
+\\item Examine \\texttt\{ObsData3\} using the \\texttt\{head()\} function to re-familiarize yourself with the data.\
+\\item Estimate the target causal parameter using the \\texttt\{ltmle()\} function:\
+\\begin\{enumerate\}\
+\\item Make sure to specify the \\texttt\{data, Anodes, Lnodes, Ynodes\} arguments according to the corresponding variable names in \\texttt\{ObsData3\}. Remember there are 2 $Y$ values here!\
+\\item Also specify the \\texttt\{survivalOutcome = TRUE\} argument.\
+\\item Specify the intervention $\\bar\{A\}$ we care about. Here, we are interested in the difference in mean outcome when $\\bar\{A\} = 1$ minus $\\bar\{A\} = 0$. \
+\\end\{enumerate\}\
+\\item Store the results in an object called \\texttt\{results3\}. Show the causal parameter estimates using TMLE and IPTW.\
+\\item Estimate the causal parameter using g-computation in an object called \\texttt\{results3.gcomp\} and show its results.\
+\\item Choose one of the three estimates used above and interpret.\
+\\end\{enumerate\}\
+\
+\\begin\{solution\}\
+<<eval = F>>=\
+# load objects associated with Data structure 3\
+load("DataStructure3.RData")\
+@\
+<<>>=\
+# examine ObsData 3\
+head(ObsData3)\
+@\
+<<>>=\
+# implement ltmle\
+results3 = ltmle(ObsData3, \
+                 Anodes = c("A1", "A2"), \
+                 Lnodes = c("L1", "L2"), \
+                 Ynodes = c("Y2", "Y3"), \
+                 survivalOutcome = TRUE, \
+                 abar = list(c(1, 1), c(0,0)))\
+results3.gcomp = ltmle(ObsData3, \
+                       Anodes = c("A1", "A2"), \
+                       Lnodes = c("L1", "L2"), \
+                       Ynodes = c("Y2", "Y3"), \
+                       survivalOutcome = TRUE, \
+                       abar = list(c(1, 1), c(0,0)), \
+                       gcomp = T)\
+@\
+<<>>=\
+# get TMLE estimates\
+sum.results3 = summary(results3, "tmle")\
+sum.results3 \
+@\
+<<>>=\
+# get IPTW estimates\
+summary(results3, "iptw")\
+@\
+<<>>=\
+# get g-comp estimates\
+summary(results3.gcomp, "gcomp")\
+@\
+\
+TMLE estimates a significant \\Sexpr\{round(sum.results3$effect.measures$ATE$estimate, 4)*(-100)\}\\% decrease in probability of getting sick if students got 8 or more hours of sleep for both nights versus if students got fewer than 8 hours of sleep for both nights. The 95\\% confidence interval for this estimate is [\\Sexpr\{round(sum.results3$effect.measures$ATE$CI[1], 4)\}, \\Sexpr\{round(sum.results3$effect.measures$ATE$CI[2], 4)\}], with this inference based on the sample variance of the estimated influence curve. \
+\\end\{solution\}\
+}

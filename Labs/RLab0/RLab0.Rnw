@@ -1,0 +1,489 @@
+% if you want the answers to appear uncomment the below
+%\documentclass[answers]{exam}
+% otherwise uncomment the below
+\documentclass{exam}
+
+\usepackage{graphicx}
+\usepackage[letterpaper, margin=.9in]{geometry}
+\usepackage{natbib}
+\bibpunct{(}{)}{;}{a}{,}{,}
+\usepackage{url}
+\def\UrlFont{\rm}
+
+\usepackage[utf8x]{inputenc}
+\usepackage{array}
+\usepackage{verbatim}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\setlength{\parskip}{2ex} 
+
+% Cannot place floats in figure environment.
+\usepackage{caption}
+\usepackage{newfloat}
+%\DeclareCaptionListFormat{myliststyle}{#1.#2}
+\DeclareCaptionType{mytype}[Solution Fig.][List of mytype]
+\newenvironment{myfigure}{\captionsetup{type=mytype}}{}
+
+
+
+\newenvironment{packed_enum}{
+\begin{enumerate}
+ \setlength{\itemsep}{0pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}
+}{\end{enumerate}}
+\newenvironment{packed_item}{
+\begin{itemize}
+ \setlength{\itemsep}{0pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}
+}{\end{itemize}}
+
+ \newcommand\independent{\protect\mathpalette{\protect\independenT}{\perp}}
+    \def\independenT#1#2{\mathrel{\setbox0\hbox{$#1#2$}%
+    \copy0\kern-\wd0\mkern4mu\box0}} 
+
+
+\bibliographystyle{plainnat}
+
+\pagestyle{myheadings}
+\markright{Advanced Topics in Causal Inference \hfill  R Lab \#0 \hfill}
+
+
+\title{R Lab 0 - \texttt{R} Programming Refresher}
+\author{Advanced Topics in Causal Inference}
+\date{}
+
+\begin{document}
+\SweaveOpts{concordance=TRUE}
+%\SweaveOpts{concordance=TRUE}
+\maketitle
+
+
+
+\noindent \textbf{Goals for this lab:} \\ 
+1. Review of \texttt{R} programming and good programming practice. \\
+2. Create a basic function to generate data with $O = (W, A, Y)$ structure. \\
+3. Implement g-computation, IPTW, and TMLE estimators inspired by the average treatment effect (ATE) of a point treatment intervention. \\
+
+\noindent \textbf{Next lab:} \\
+1. Explore different data structures, inspired by real-world experiments. \\
+2. Simulate data generating process that gives rise to the data we observe. \\
+3. Think of studies in which these data generating systems may occur.\\
+
+\section{Introduction and Motivation}
+
+Welcome to Advanced Topics in Causal Inference \texttt{R} Labs! This semester we'll be working in \texttt{R} to implement concepts we've learned in lectures and discussion sections. In this lab we'll provide a refresher of \texttt{R} programming.
+
+\noindent Section 2 will give you a refresher on \texttt{R} basics, including objects, subsetting, making plots, etc. Section 3 will walk you through how to generate data, and Section 4 will implement the 3 estimators we learned in Causal I to estimate the average treatment effect. You won't be turning in this lab, so feel free to complete as many or few sections as you feel will help you get a solid foundation before we start labs (to turn in) next week.
+
+\noindent In future labs, please turn in relevant \texttt{R} code, text, and figures. Consider turning in your homework as a compiled \texttt{R} Markdown (RMD) file, which ``knits" your code, text, and figures into a single PDF, Word, or html document. A .Rmd template with further instructions can be found on bCourses.
+
+\begin{figure}
+\begin{center}
+\includegraphics[width=.4\textwidth]{welcome.jpg}
+\caption{Welcome to Causal II labs!}
+\end{center}
+\end{figure}
+
+\section{\texttt{R} review and refresher}
+\subsection{Help files}
+
+Help files in \texttt{R} are extremely useful. Coding in \texttt{R} isn't so much about memorizing functions; it's more useful to know how to look up commands. Knowing how to read the help documentation will make you a much more independent and creative programmer. 
+
+\noindent For example, type \texttt{?rnorm} in your console in the command line. This pulls up the help page for the \texttt{rnorm()} function. What does the function \texttt{rnorm()} do? The help file gives you a description of all things having to do with the normal distribution (you will see a few other functions listed, such as \texttt{pnorm()}, \texttt{dnorm()}, and \texttt{qnorm())}.
+
+\noindent The \textit{Usage} section lets you know what arguments go into which functions. If there's an equal sign (i.e., =), that means that argument has a default value, so you don't need to specify that argument. You only need to specify if you want something different than the default. 
+
+\noindent The \textit{Arguments} section describes what each of the arguments are. 
+
+\noindent So, for example, \texttt{rnorm(n = 3, mean = 4, sd = 1)} generates 3 random numbers from a normal distribution with mean 4 and standard deviation 1. And \texttt{rnorm(n = 3)} generates 3 random numbers from a normal distribution with mean 0 and standard deviation 1. Notice we don't need to specify the \texttt{mean} and \texttt{sd} arguments in \texttt{rnorm()} if we want to generate numbers from a $Normal(\mu = 0, \sigma = 1)$ distribution because these are the default parameters (i.e., in the Usage section of the help file, the arguments \texttt{mean} and \texttt{sd} are equal to 0 and 1, respectively). Conversely, we always need to specify what \texttt{n} is because there's no default (i.e., no '=' sign after \texttt{n}).
+
+
+\subsection{Assigning values to \texttt{R} objects}
+
+We can assign results of computations to variables. Type each of the following lines either in an \texttt{R} script (and run each line), or in your console:
+<<>>=
+x = (6-2)^.5/3^2
+@
+Here we are assigning a complicated arithmetic computation to the variable \texttt{x}. Notice what comes up in the workspace window when you assign the variable \texttt{x} to that value. Notice what comes up in the console when you run \texttt{x}:
+<<>>=
+x
+@
+\texttt{identical()} is a function that outputs a logical vector telling us whether two variables are identical:
+<<>>=
+X = 3 
+identical(x, X)  
+@
+As you can see here: \texttt{R} is case sensitive! Here we're catenating \texttt{x} and \texttt{X} into a vector called \texttt{y}:
+<<>>=
+y = c(x, X)  
+y
+@
+
+\noindent\textbf{On your own} (remember, use \texttt{?} to figure out what a function does and what arguments that go into a function):
+
+\begin{enumerate}
+\item Use the \texttt{rep()} function to make a vector that repeats the number ``4" 5 times (i.e., 4 4 4 4 4). Assign that vector to the variable \texttt{z}.
+\item Use the \texttt{seq()} function to make a vector that shows odd numbers from 1 to 10 (i.e., 1 3 5 7 9). Assign that vector to the variable \texttt{y}. Notice how we've overwritten the variable \texttt{y} we had before.
+\item Use the \texttt{sample()} function to sample 17 of elements from \texttt{y} with replacement. Assign that vector to the variable \texttt{w}. 
+\item Add \texttt{z + y}.
+\item Add \texttt{y + w}. What happened? Why? (Hint: use the \texttt{length()} function on \texttt{y} and \texttt{w}).
+\item Remove \texttt{w} using the \texttt{rm()} function.
+\end{enumerate}
+
+\begin{solution}
+\end{solution}
+
+\subsection{Data types and subsetting}
+
+Subsetting just means picking out elements of a vector (or other objects). This will be useful for picking out certain variables or observations of a dataset. Let's reset \texttt{z} and \texttt{y} to the following (i.e., run these two lines):
+<<>>=
+z = c(2, 4, 6, 7, 10)
+y = c(1, 3, 5, 7, 9)
+@
+
+\noindent Catenate \texttt{y} and \texttt{z}, and assign to \texttt{x}.
+<<>>=
+x = c(y, z)  
+@
+
+\subsubsection{Subsetting}
+\begin{itemize}
+\item Subsetting by \textit{position}
+
+<<>>=
+x[3]  
+@
+Here, we are getting the $3^{rd}$ element of \texttt{x}. This is subsetting by \textit{position}.
+
+\item Subsetting by \textit{exclusion}
+
+<<>>=
+x[-3]  
+@
+
+Here, we are getting all but the $3^{rd}$ element of \texttt{x}. This is subsetting by \textit{exclusion}.
+
+\item Subsetting by \textit{name}
+
+Write the following code. There's a ``built-in" vector called \texttt{letters} in \texttt{R} that has all the letters in the alphabet:
+<<>>=
+names(x) = letters[1:length(x)]
+x
+@
+Above, we're taking the first 10 (since that's the length of \texttt{x}) letters of the alphabet, and assigning those letters as names for the element in \texttt{x}. Below, we're getting all elements of \texttt{x} with the name \texttt{'c'}:
+
+<<>>=
+x['c']  
+@
+This is subsetting by \textit{name}.
+
+\item Subsetting by \textit{logical}
+
+The following returns a vector of ``logicals" telling us which elements of \texttt{y} are equal to 3:
+<<>>=
+y==3  
+@
+The second element returned is \texttt{TRUE} because the second element of \texttt{y} is 3. Notice our use of the double equals sign (\texttt{==}). You can also do \texttt{>} for greater than, \texttt{<} for less than, \texttt{>=} for greater than or equal to, \texttt{<=} for less than or equal to.  Below, we're subsetting the elements of \texttt{z} based on the elements of \texttt{y} are equal to 3:
+<<>>=
+z[y==3]  
+@
+This is subsetting by \textit{logical}.
+
+\item Subsetting by \textit{everything}:
+<<>>=
+x[]  
+@
+Here, we are getting everything from \texttt{x}.
+\end{itemize}
+
+\noindent\textbf{On your own:}
+
+\begin{enumerate}
+\item Get every other element of \texttt{x} (hint: use one of the functions you implemented above!)
+\item Get elements with the name ``a", ``c", and ``f"
+\item Make every element of \texttt{x} equal to 4.
+\end{enumerate}
+
+\begin{solution}
+\end{solution}
+
+
+\subsection{Matrices and dataframes}
+
+\subsubsection{Matrices}
+
+Matrices are ``shaped" vectors, in which all items have to be of the same type. Let's reset \texttt{x} to be a vector with numbers from 1 to 10:
+<<>>=
+x = 1:10
+@
+\noindent Now let's construct a matrix, \texttt{mat}, which uses the elements of \texttt{x}, and makes a ``shape" out of them so that it has 2 columns and 5 rows:
+<<>>=
+mat = matrix(x, nrow = 5) 
+@
+\noindent What are the dimensions of the matrix, \texttt{mat}?
+<<>>=
+dim(mat)
+@
+
+\noindent Let's subset out the second row of \texttt{mat}:
+<<>>=
+mat[2,] 
+@
+
+\noindent Now let's subset out the first column of \texttt{mat}. Notice how it returns a vector.
+<<>>=
+mat[,1] 
+@
+
+\noindent\textbf{On your own:}
+
+\begin{enumerate}
+\item Get the element that's the third row and first column of the \texttt{mat} matrix.
+
+\item Assign names to the \texttt{mat} matrix so that it looks like this:
+
+\indent b c
+   
+  a 1 4
+
+  b 3 4
+
+  c 5 4
+
+  d 7 4
+
+  e 9 4
+
+\textit{Hint:} Use \texttt{rownames(mat)} and \texttt{colnames(mat)}.
+
+\end{enumerate}
+\begin{solution}
+\end{solution}
+
+\subsubsection{Dataframes}
+
+A data frame is a collection of columns that can be of different types. This is what you typically think of as a dataset. In your group projects, you may need to load a data file read/manipulate it in \texttt{R}. If you haven't done so already, download the CAquakes.csv file from the Lab 0 folder in bCourses. Notice which folder on your computer you've saved it to, or move it to a folder that makes sense for this assignment. First, set your working directory:
+<<eval = F>>=
+setwd("/Users/linamontoya/Dropbox/252E 2017/RLabs/RLab0")
+@
+\noindent This is where CAquakes.csv lives on my computer. Change the filepath according to where CAquakes.csv lives on your computer and make sure to put quotes around the filepath. Read in the CAquakes .csv file:
+<<>>=
+CAquakes = read.csv(file = "CAquakes.csv")
+@
+\noindent Note, the above will only work if the working directory is set to where CAquakes.csv lives on your computer. Also notice how the dataframe CAquakes has appeared in your workspace. Let's get the data type of CAquakes:
+<<>>=
+class(CAquakes)
+@
+\noindent We see \texttt{R} read it in as a data frame. Type \texttt{View(CAquakes)} in your console. Inspect your data:
+<<>>=
+dim(CAquakes) # dimensions of your data frame
+
+head(CAquakes)  # this gets the first 6 elements of CAquakes
+
+summary(CAquakes)  
+@
+\noindent The \texttt{summary()} function gives you information on your object, depending on what kind of object it is. What kind of information does the \texttt{summary()} function give for a dataframe?
+
+\noindent Here are 3 ways of extracting the first 6 elements of Latitude column vector:
+<<>>=
+head(CAquakes$Latitude)
+head(CAquakes[["Latitude"]])
+head(CAquakes[,2])
+@
+
+
+\noindent\textbf{On your own:}
+
+\begin{enumerate}
+
+\item Using the \texttt{CAquakes} data, get the mean Longitude.
+\item Look up the function \texttt{hist()} and plot the magnitudes (M) of the earthquakes. Try changing the main title and x-axis title to something more informative than the default.
+\item Use a scatterplot to visualize how earthquake magnitude behaves as latitude increases (\textit{Hint}: look up and use the \texttt{plot()} function). Again, try changing the titles.
+\end{enumerate}
+
+\begin{solution}
+\end{solution}
+
+
+
+\section{Creating functions and generating data}
+
+There are many built-in functions in \texttt{R} (for example, above we saw the \texttt{rep()}, \texttt{seq()}, and \texttt{rnorm()} functions, to name a few). However, it's also possible to write your own functions. We will often create functions in these labs, in particular, to generate many copies of variables that comprise a dataset. The general syntax for a function is as follows:
+<<>>=
+examplefun = function(x) { 
+  
+  y = x + 3 # what the function does
+  
+  return(y) # what we want the function to return back (output)
+}
+@
+
+\texttt{examplefun} is the name of the function (we make that up), and \texttt{x} is the argument (input). \texttt{examplefun()} takes in as input \texttt{x}, and outputs \texttt{y}, which is the input plus 3. For example, if input 4 for \texttt{x}, we anticipate \texttt{examplefun()} to spit out 7 (i.e., 4 + 3):
+
+<<>>=
+examplefun(x = 4)
+@
+
+
+\noindent\textbf{On your own:}
+
+\begin{enumerate}
+\item Set the seed to 252. \\
+\textit{Note:} Setting the seed to a value (generally) ensures that running the same chunk of code twice will return the exact same output, even if the code involves ``random" numbers. This will also help your GSIs help you with your labs/homework assignments/projects.
+\item Create a function, \texttt{Uniform()}, that generates $n$ i.i.d. random variables uniformly distributed between 0 and $x$. \\
+\textit{Hint:} the function should take in 2 arguments as input: 1) $n$, the number of uniform variables to generate, and 2) $x$, the maximum value the uniform variable can take. \textit{Extra hint:} look up the \texttt{runif()} function to randomly generate values from the uniform distribution.
+\item Create a function, \texttt{generate\_data()}, that generates a dataframe with $n$ i.i.d. random variables that follow these distributions:\\
+\begin{align*}
+U_{W1}&\sim Uniform(0,1) \\
+U_{W2}& \sim Normal(\mu=1, \sigma^2=2^2)\\
+U_{A} &\sim Uniform(0,1)\\
+U_{Y} &\sim Uniform(0,1)\\
+\end{align*}
+
+\textit{Hint:} the skeleton of your function should look like this (fill in the commented out parts with your own code):
+<<eval = F>>=
+generate_data = function(n) {
+  
+  # generate n Uniform(min = 0, max = 1) variables here, set equal to U.W1
+  # generate n Normal(mean = 0, max = 1) variables here, set equal to U.W2
+  # generate n Uniform(min = 0, max = 1) variables here, set equal to U.A
+  # generate n Uniform(min = 0, max = 1) variables here, set equal to U.Y
+  
+}
+@
+
+where \texttt{generate\_data} takes in the single argument \texttt{n}, the number of observations. Try using the \texttt{Uniform()} function you created in the previous step to generate the uniform random variables.
+
+\item Add to the function \texttt{generate\_data()} so that it also creates 4 new variables based on the following functions that relate them:
+\begin{align*}
+W1&=\mathbb{I}\big[ U_{W1}<0.45 \big]\\
+W2&= 0.75^*U_{W2}\\
+A&=\mathbb{I}\big[ U_A < expit(-1+2.6^*W1+0.9^*W2) \big]\\
+Y&=\mathbb{I}\big[ U_Y < expit(-2+A+0.7^*W1) \big] \\
+\end{align*}
+
+\emph{Hint:} Use the \texttt{as.numeric()} function for indicator variables. \\
+Example: $\mathbb{I}[X > 0]$ can be coded as \texttt{as.numeric(X>0)}.
+
+\emph{Extra hint:} Recall that the $expit$ function is the inverse of the logistic function:
+\begin{align*}
+logit(x) &= log\left(\frac{x}{1-x} \right)\\
+expit(x) &=\frac{1}{1+e^{-x}}
+ \end{align*}
+In \texttt{R}, the $expit$ function is called \texttt{plogis()}.
+
+\item Within \texttt{generate\_data()}, create a dataframe using either the \texttt{data.frame()} function or the \texttt{cbind()} function consisting of only $W1, W2, A$, and $Y$ and let that be your output (i.e., what you \texttt{return}) for the function \texttt{generate\_data()}. 
+
+\item \textbf{Create 1000 copies of $W1, W2, A,$ and $Y$} using \texttt{generate\_data()} and set the output of the function equal to the object \texttt{ObsData}.
+
+\item Show the first 6 lines and summary statistics of \texttt{ObsData}, using the \texttt{head()} and \texttt{summary()} functions, respectively.
+\end{enumerate}
+
+\begin{solution}
+\end{solution}
+
+\section{Implementation of g-computation (simple substitution estimator), IPTW, and TMLE estimation of average treatment effect of a point treatment}
+
+Using \texttt{ObsData} we created in the previous section, we will implement g-computation, IPTW, and TMLE estimators using SuperLearner to generate estimates inspired by the average treatment effect (e.g., $\mathbb{E}[Y_{a=1} - Y_{a=0}]$). Recall from Causal I labs (note: not to worry if you don't remember much about these estimators -- we will review them [including how to implement them] later on in this course):
+
+\begin{enumerate}
+\item \textbf{Simple substitution estimator based on the G-Computation formula:} \[
+\hat{\Psi}_{SS}(\hat{\mathbb{P}}) = \frac{1}{n} \sum_{i=1}^n  \big( \hat{\bar{Q}}(1, W_i) - \hat{\bar{Q}}(0, W_i) \big)
+\]
+where $\hat{\mathbb{P}}$ is the empirical distribution and $\hat{\bar{Q}}(A, W)$ is the estimate of the conditional mean outcome given the exposure and baseline covariates $\bar{Q}_0(A,W)\equiv \mathbb{E}_0(Y|A,W)$.\\ 
+- Consistency of the simple (non-targeted) substitution estimator depends on consistent estimation of the conditional mean outcome $\bar{Q}_0(A,W)$.\\
+
+\item \textbf{Standard (unstabilized) inverse probability weighted estimator (IPTW)}: 
+\[
+\hat{\Psi}_{IPTW}(\hat{\mathbb{P}}) = \frac{1}{n}\sum_{i=1}^n \left[ \frac{\mathbb{I}(A_i=1)}{\hat{g}(1|W_i)}  - 
+   \frac{\mathbb{I}(A_i=0)}{\hat{g}(0|W_i)} \right] Y_i
+\]
+where $\hat{g}(1|W_i) = \hat{\mathbb{P}}(A_i=1|W_i)$ is an estimate of the exposure mechanism.\\
+- Consistency of IPTW estimators depends on consistent estimation of the exposure mechanism $g_0(1|W) \equiv \mathbb{P}_0(A=1|W)$. \\
+
+\item \textbf{Targeted maximum likelihood estimation (TMLE):}\[
+\hat{\Psi}_{TMLE}(\hat{\mathbb{P}}) =  \frac{1}{n} \sum_{i=1}^n \big( \bar{Q}^*_n(1, W_i) - \bar{Q}^*_n(0, W_i) \big)
+\]
+where $\bar{Q}^*_n(A, W)$ denotes the \textit{targeted} estimate of the conditional mean outcome, given the exposure and baseline covariates $\bar{Q}_0(A,W)$.\\
+- Implementation requires estimation of both the conditional mean function $\bar{Q}_0(A,W)$ and the exposure mechanism $g_0(A|W)$. \\
+- Double robust estimators are consistent if {either} $\bar{Q}_0(A,W)$ {or} $g_0(A|W)$ is estimated consistently. \\
+\end{enumerate}
+
+\noindent \emph{Reminder:} An estimator is \emph{consistent} if the point estimates converge (in probability) to the estimand as sample size $n \rightarrow \infty$. \\
+\noindent \emph{Reminder 2:} The notation of a subscript $n$ or hat denotes that the value is an estimate (i.e., it comes from the empirical distribution $\mathbb{P}_n$ or $\mathbb{\hat{P}}$). The notation of subscript $0$ denotes that it is a true value (i.e., the value is comes from the true population distribution, $\mathbb{P}_0$). Again, we will review this later in the course :)
+
+\noindent \textbf{Warning:} in practice you must go through the entire roadmap to infer any causality. Here, we are simply demonstrating how to implement the estimators.
+
+\begin{enumerate}
+\item Load the \texttt{SuperLearner} and \texttt{tmle} or \texttt{ltmle} packages by using the \texttt{library()} function, and set the seed to 252.
+\item Set the object \texttt{n} to the number of observations in \texttt{ObsData}. \\
+\textit{Hint:} use the \texttt{nrow()} function.
+\item Create a dataframe, \texttt{X}, that contains only $W1$, $W2$, and $A$ of \texttt{ObsData} \\
+\textit{Hint:} use the \texttt{subset()} function.
+<<eval = F>>=
+X = subset(ObsData, select = c(W1, W2, A))
+@
+\item Make new dataframes \texttt{X1} and \texttt{X0} that are copies of \texttt{X}. For the dataframe \texttt{X1}, set $A = 1$; for the dataframe \texttt{X0}, set $A = 0$. For example:
+<<eval = F>>=
+X1$A = 1 # set A = 1 in X1 dataframe. Repeat for X0 but with A = 0.
+@
+\item Stack \texttt{X}, \texttt{X1}, and \texttt{X0} by using the \texttt{rbind()} function. Set the stacked data equal to the object \texttt{newdata}.
+\item Set \texttt{SL.library = c('SL.glm', 'SL.mean', 'SL.glm.interaction')}. This is the SuperLearner library we'll use to estimate the outcome regression and treatment mechanism needed for the estimators.
+\item \textbf{Call \texttt{SuperLearner()} to estimate $Q_0(A,W1, W2) = \mathbb{E}_0[Y|A,W1,W2]$, the outcome regression}. Specify the arguments \texttt{Y = ObsData\$Y}, \texttt{X = X}, \texttt{newX = newdata}, \texttt{SL.library = SL.library}, and \texttt{family = 'gaussian'}. Set the SuperLearner object equal to the \texttt{Qbar}.
+\item Obtain the predicted/expected $Y$ given: 
+\begin{enumerate}
+\item the observed $A$ and covariates
+<<eval = F>>=
+QbarAW = Qbar$SL.predict[1:n]
+@
+\item $A = 1$ and the observed covariates
+<<eval = F>>=
+Qbar1W = Qbar$SL.predict[(n+1): (2*n)]
+@
+\item $A = 0$ and the observed covariates
+<<eval = F>>=
+Qbar0W = Qbar$SL.predict[(2*n+1): (3*n)]
+@
+\end{enumerate}
+\item \textbf{Evaluate the simple substituation estimator} by taking the mean of \texttt{Qbar1W} and subtracting it from the mean of \texttt{Qbar0W}:
+\begin{align*}
+\hat{\Psi}_{SS}(\hat{\mathbb{P}})  & = \frac{1}{n} \sum_{i=1}^n \bigg[ \hat{\mathbb{E}}(Y_i|A=1, W1_i, W2_i) - \hat{\mathbb{E}}(Y_i|A=0, W1_i, W2_i)\bigg] \\
+& = \frac{1}{n} \sum_{i=1}^n \bigg[ \bar{Q}_n(1, W1_i, W2_i) - \bar{Q}_n(0, W1_i, W2_i)\bigg]
+\end{align*}
+\item Create a dataframe with only the covariates. Call this dataframe \texttt{W}.
+\item \textbf{Call \texttt{SuperLearner()} to estimate $g_0(A|W1, W2) = P_0(A|W1, W2)$, the treatment mechanism}. Specify the arguments \texttt{Y = ObsData\$A}, \texttt{X = W}, \texttt{SL.library = SL.library}, and \texttt{family = 'binomial'}. Set the SuperLearner object equal to the \texttt{gHatSL}.
+\item Generate the predicted probability of:
+\begin{enumerate}
+\item $A=1$ given covariates
+<<eval = F>>=
+gHat1W = gHatSL$SL.predict
+@
+\item $A=0$ given covariates
+<<eval = F>>=
+gHat0W = 1 - gHatSL$SL.predict
+@
+\end{enumerate}
+\item \textbf{Implement the IPTW estimator} by taking a weighted average of $Y$, with weights equal to $w_i = \frac{1}{g_n(A_i|W1_i, W2_i)}$:
+\begin{align*}
+\hat{\Psi}_{IPTW}(\hat{\mathbb{P}})  & = \frac{1}{n}\sum_{i=1}^n \frac{\mathbb{I}(A_i=1)}{g_n(A_i|W1_i, W2_i)} Y_i - \frac{1}{n}\sum_{i=1}^n \frac{\mathbb{I}(A_i=0)}{g_n(A_i|W1_i, W2_i)} Y_i \\
+& = \frac{1}{n}\sum_{i=1}^n \mathbb{I}(A_i=1)^*\hat{w}_i^*Y_i - \frac{1}{n}\sum_{i=1}^n \mathbb{I}(A_i=0)^*\hat{w}_i^*Y_i
+\end{align*}
+\item \textbf{Implement the TMLE estimator} by calling \texttt{tmle()} or \texttt{ltmle()}.
+\begin{itemize}
+\item If you're using the \texttt{tmle()} package, specify the arguments \texttt{Y = ObsData\$Y}, \texttt{A = ObsData\$A}, \texttt{W = W}, \texttt{Q.SL.library = SL.library}, \texttt{g.SL.library = SL.library}. 
+\item If you're using the \texttt{ltmle()} package, specify the arguments \texttt{data=ObsData}, \texttt{Anodes='A'}, \texttt{Ynodes='Y'}, \texttt{abar=list(1,0)}, \texttt{SL.library=SL.library}. 
+\end{itemize}
+\end{enumerate}
+
+\begin{solution}
+\end{solution}
+
+\vfill 
+\noindent Lab Adapted from Spring 2015 Stat 133 Lab and Lecture by Deborah Nolan, Chris Paciorek's 2014 R bootcamp, Causal I Lab 0 by Alex Leudtke
+
+
+\end{document}
+
+

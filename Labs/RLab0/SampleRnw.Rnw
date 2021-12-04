@@ -1,0 +1,171 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  LATEX SETTINGS  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% default math Homework
+\documentclass[twoside, 11pt]{article}
+\usepackage{natbib}
+\usepackage[margin=.6in]{geometry}
+\usepackage{relsize}
+\usepackage{hyperref}
+\usepackage{framed}
+\usepackage{amsmath,amsthm,amssymb}
+
+% manual indent paragraphs
+\setlength{\parindent}{0 in}
+\usepackage{etoolbox}
+\newcommand{\zerodisplayskips}{%
+	\setlength{\abovedisplayskip}{5pt}%
+	\setlength{\belowdisplayskip}{5pt}%
+	\setlength{\abovedisplayshortskip}{5pt}%
+	\setlength{\belowdisplayshortskip}{5pt}}
+\appto{\normalsize}{\zerodisplayskips}
+\appto{\small}{\zerodisplayskips}
+\appto{\footnotesize}{\zerodisplayskips}
+
+% for flow charts
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows}
+
+\tikzstyle{W} = [rectangle, fill=blue!30, minimum height=1.5cm, minimum width=2.43cm, 
+rounded corners, draw, text centered]
+\tikzstyle{A} = [trapezium, fill=green!30, minimum height=1.5cm, minimum width=2.7cm, 
+rounded corners, trapezium left angle=70, trapezium right angle=110, text centered, draw=black]
+\tikzstyle{Z} = [rectangle, draw, fill=teal!18, minimum height=1.5cm, minimum width=2.43cm, 
+rounded corners, text width=5em, text centered]
+\tikzstyle{Y} = [diamond, fill=orange!35, minimum height=2cm, minimum width=2.5cm, 
+text badly centered, rounded corners, draw]
+\tikzstyle{U} = [ellipse,fill=red!30, minimum height=1.5cm, minimum width=2.43cm, 
+draw, text centered, node distance=8cm]
+\tikzstyle{empty} = [ellipse,fill=white!0, draw=white]
+
+\tikzstyle{sarrow} = [-latex', line width=.2cm, color=black!60]
+\tikzstyle{darrow} = [<->, dashed, >=stealth, line width=.1cm, color=black!65]
+\tikzstyle{line} = [-latex', line width=.05cm, color=black!60]
+
+% custom shortcuts
+% stats
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\renewcommand{\P}{\mathbb{P}}
+\newcommand{\barn}[1]{\bar{#1}_n}
+\newcommand{\hatn}[1]{\hat{#1}_n}
+\newcommand{\convd}{\overset{d}{\rightarrow}}
+\newcommand{\convp}{\overset{p}{\rightarrow}}
+\newcommand{\iid}{\overset{iid}{\sim}}
+\newcommand{\Cov}[2]{\text{Cov}\left(#1 , #2\right)}
+\newcommand{\Var}[1]{\text{Var}\left(#1\right)}
+
+
+% notation
+\newcommand{\inv}{^{\text{-}1}}
+\newcommand{\T}{^{\textsf{T}}}
+\newcommand{\n}{\text{-}}
+\newcommand{\problem}[1]{\section*{#1}}
+\newcommand{\subproblem}[1]{\tab \fontsize{12}{0} \textbf{#1}\\}
+\newcommand{\argmax}{\operatornamewithlimits{\textrm{argmax}}}
+\newcommand{\argmin}{\operatornamewithlimits{\textrm{argmin}}}
+\newcommand{\sumlim}[2]{\sum\limits_{#1}^{#2}}
+\newcommand{\abs}[1]{\left|#1\right|}
+
+% spacing
+\newcommand{\tab}{\hspace*{2ex}}
+\newcommand{\tabb}{\hspace*{4ex}}
+\newcommand{\tabbb}{\hspace*{6ex}}
+\let\existstemp\exists
+\let\foralltemp\forall
+\renewcommand*{\exists}{\existstemp\mkern3mu}
+\renewcommand*{\forall}{\foralltemp\mkern3mu}
+
+% custom environments 
+\newenvironment{theorem}[2][Theorem]{\begin{trivlist}
+		\item[\hskip \labelsep {\bfseries #1}\hskip \labelsep {\bfseries #2.}]}{\end{trivlist}}
+\newenvironment{lemma}[2][Lemma]{\begin{trivlist}
+		\item[\hskip \labelsep {\bfseries #1}\hskip \labelsep {\bfseries #2.}]}{\end{trivlist}}
+\newenvironment{exercise}[2][Exercise]{\begin{trivlist}
+		\item[\hskip \labelsep {\bfseries #1}\hskip \labelsep {\bfseries #2.}]}{\end{trivlist}}
+\newenvironment{reflection}[2][Reflection]{\begin{trivlist}
+		\item[\hskip \labelsep {\bfseries #1}\hskip \labelsep {\bfseries #2.}]}{\end{trivlist}}
+\newenvironment{proposition}[2][Proposition]{\begin{trivlist}
+		\item[\hskip \labelsep {\bfseries #1}\hskip \labelsep {\bfseries #2.}]}{\end{trivlist}}
+\newenvironment{corollary}[2][Corollary]{\begin{trivlist}
+		\item[\hskip \labelsep {\bfseries #1}\hskip \labelsep {\bfseries #2.}]}{\end{trivlist}}
+
+
+% custom header titlebox[class, problem set, term] e.g. HW{PH 240A, Problem Set 1, Spring 2018}
+% custom header titlebox[class, problem set, term] e.g. HW{PH 240A, Problem Set 1, Spring 2018}
+\newcommand{\titlebox}[3]{
+	\thispagestyle{plain}
+	\newpage
+	\noindent
+	\begin{center}
+		\framebox{
+			\vbox{\vspace{1mm}
+				\hbox to 6.28in { {\textit{#1} \hfill \textit{#3}} }
+				\vspace{2mm}
+				\hbox to 6.28in { {\Large \hfill #2 \hfill} }
+				\vspace{2mm}
+				\hbox to 6.28in { {\textit{\today} \hfill  \textit{David Chen: 3032626287}} }
+				\vspace{1mm}}
+		}
+	\end{center}
+	\vspace*{1mm}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  KNITR SETTINGS  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+<<r-setup, echo=FALSE, message=FALSE, warning=FALSE>>=
+# clear R session
+rm(list = ls())
+
+# packages
+library(knitr); library(tidyverse); library(ggplot2)
+library(stringr); library(forcats); library(lubridate)
+
+# document options
+opts_chunk$set(fig.width = 7, fig.height = 4.5)
+opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, cache = TRUE)
+options(warn = -1)
+
+# update ggplot2 theme
+theme_set(theme_minimal())
+# theme_update(axis.line.y = element_blank())
+# opts_knit$set()
+# set.seed(0)
+
+# set working directory
+# no good method found yet
+try(setwd(dirname(rstudioapi::getActiveDocumentContext()$path)))
+@
+
+% read in with tag 'read-chunk' -> function 'read_chunk("file")' -> call with tag 'external_chunk_#'
+% r(bash)-chunk#, engine='', include (print), eval, echo
+
+% knit from bash
+% Rscript -e "library(knitr); knit2pdf('example_document.Rtex')"
+
+% knit from R
+% library(knitr); knit('example_document.Rtex')
+
+% Make a plot
+% r-plot, fig.height = 3, fig.width = 3
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  DOCUMENT START  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+%\renewcommand{\qedsymbol}{\filledbox}
+%\renewcommand{\labelenumi}{(\alph{enumi})}
+
+% \title{Assignment, Class, Term}
+% \author{David Chen}
+% \maketitle
+
+\titlebox{Class}{Assignment}{Term}
+% \graphicspath{ {./figures/}}
+
+% \begin{thebibliography}{1}
+% \bibitem{key-3}use this or generate it automatically with BibTex\end{thebibliography}
+
+\end{document}

@@ -1,0 +1,1006 @@
+% if you want the answers to appear uncomment the below
+%\documentclass[answers]{exam}
+% otherwise uncomment the below
+\documentclass{exam}
+
+\usepackage{graphicx}
+\usepackage[letterpaper, margin=.9in]{geometry}
+\usepackage{natbib}
+\bibpunct{(}{)}{;}{a}{,}{,}
+\usepackage{url}
+\def\UrlFont{\rm}
+
+
+\usepackage[utf8x]{inputenc}
+\usepackage{array}
+\usepackage{verbatim}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+%\usepackage{lineno}
+\setlength{\parskip}{2ex} 
+%\setlength{\parindent}{0ex}
+
+% Cannot place floats in figure environment.
+\usepackage{caption}
+\usepackage{newfloat}
+%\DeclareCaptionListFormat{myliststyle}{#1.#2}
+\DeclareCaptionType{mytype}[Solution Fig.][List of mytype]
+\newenvironment{myfigure}{\captionsetup{type=mytype}}{}
+
+
+
+\newenvironment{packed_enum}{
+\begin{enumerate}
+ \setlength{\itemsep}{0pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}
+}{\end{enumerate}}
+\newenvironment{packed_item}{
+\begin{itemize}
+ \setlength{\itemsep}{0pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}
+}{\end{itemize}}
+
+ \newcommand\independent{\protect\mathpalette{\protect\independenT}{\perp}}
+    \def\independenT#1#2{\mathrel{\setbox0\hbox{$#1#2$}%
+    \copy0\kern-\wd0\mkern4mu\box0}} 
+
+
+\bibliographystyle{plainnat}
+
+\pagestyle{myheadings}
+\markright{Advanced Topics in Causal Inference \hfill  R Lab \#7 \hfill}
+
+
+\title{R Lab 7 - Estimation, Part III: g-computation, IPTW, and TMLE estimation for longitudinal data using the \texttt{ltmle} package}
+\author{Advanced Topics in Causal Inference}
+\date{}
+
+
+\begin{document}
+\maketitle
+
+\SweaveOpts{concordance=TRUE}
+
+\maketitle
+\noindent \textbf{Assigned:} November 16, 2020\\
+\textbf{Lab due:} November 23, 2020 on bCourses. Please answer all questions and include relevant \texttt{R} code. You are encouraged to discuss the assignment in groups, but should not copy code or interpretations verbatim. Upload your own completed lab to bCourses.
+
+
+
+\noindent \textbf{Last lab:} \\ 
+``Traditional" longitudinal parametric g-computation estimator, g-computation estimator based on the ICE representation of the longitudinal g-computation formula, TMLE based on the ICE representation of the longitudinal g-computation formula (by hand). \\
+
+
+\noindent \textbf{Goals for this lab:} \\
+1. Implement ICE g-computation, IPTW, and TMLE using the \texttt{ltmle} package for all of the data structures/causal questions presented in the \texttt{R} Labs we have presented throughout the semester.\\
+2. Performance and properties of these estimators. \\
+
+
+\begin{center}
+\noindent\rule{18cm}{0.4pt}
+\end{center}
+
+\section{Introduction and Motivation}
+
+
+In \texttt{R} Labs 4 and 6, we delved into estimation of causal parameters presented in \texttt{R} Lab 2. We hand-coded each of the estimators -- IPTW, g-computation (parametric and ICE), and TMLE -- to understand their inner workings. Lucky for us, in practice we don't have to hand-code these estimators to use them. The \texttt{ltmle} package implements them in one line! \\
+
+\noindent \textbf{Warning:} remember that to infer any causality for a generated estimate, we must carefully and thoughtfully go through the roadmap learned in class. 
+
+\begin{figure}
+\begin{center}
+\includegraphics[width=.15\textwidth]{welldone.png}
+\caption{Last lab! Thanks for a great semester :)}
+\end{center}
+\end{figure}
+
+\subsection{This lab}
+For each data structure, we will give you the	variables in $O$ (the data), causal question, target causal parameter (and its value), and definition of counterfactual outcomes. We will estimate all of the values of the causal parameters we defined in previous labs using IPTW, g-computation, and TMLE. We'll also interpet what these values mean. At the end of the lab, we'll comment on the properties of each of the estimators, drawing from the estimator performance results.
+
+\noindent Refer back to \texttt{R} Lab 1 for variable definitions.
+
+\noindent Before getting started, make sure you have loaded the \texttt{ltmle} package:
+<<>>=
+library(ltmle)
+@
+
+\subsection{To turn in:}
+
+
+\noindent\fbox{
+    \parbox{\textwidth}{
+
+\textbf{\underline{For each of the 4 data structures listed below, answer the following questions:}} \\
+
+\begin{enumerate}
+\item \textbf{Implement TMLE, IPTW, and g-computation estimators using the \texttt{ltmle()} function.}
+\item \textbf{Show the point estimate and inference results for each of the estimators.}
+\item \textbf{Interpret one of the three estimates}. Make sure to comment on inference.
+\item \textbf{Comment on the estimators' performance and properties}. We will give you performance results at the end of the lab.
+\end{enumerate}
+
+ 
+
+    }
+}
+
+\pagebreak
+
+\noindent\large\textbf{Data Structure 1: $O = (W, A, L, \Delta, \Delta Y)$}
+\normalsize
+
+<<echo = F>>=
+load("../../Data structures/DataStructure1.RData")
+@
+
+
+\noindent \underline{Causal question:} What is the absolute difference in expected test score if all students slept 8 or more hours compared to if all students slept less than 8 hours, under a hypothetical intervention to ensure that everyone takes the statistics test?
+
+\noindent \underline{Causal parameter:}
+\[
+\Psi^F(P_{U,X}) = E_{U,X}[Y_{a=1, \Delta=1}] - E_{U,X}[Y_{a=0, \Delta=1}] = \Sexpr{round(Psi.F1, 4)}
+\]
+
+Where the counterfactual $Y_{a,\Delta=1}$ is a random student's test score if, possibly contrary to fact, the student's sleep status had been $A=a$ and his/her test score was observed ($\Delta=1$). The true value of the causal parameter can be interpreted as follows: the counterfactual expected test score would be \Sexpr{round(Psi.F1, 2)} points higher if all students got 8 hours of sleep than if all students got less than 8 hours of sleep the night before their statistics test, with no loss to follow up. 
+
+\begin{enumerate}
+\item Load \texttt{DataStructure1.RData} using the \texttt{load()} function. Make sure you have specified the correct file path. You should see 4 new things come up in your global environment:
+\begin{packed_item}
+\item[-] \texttt{ObsData1} - this is a dataframe of 1,000 observations that follows Data Structure 1's observed data.
+\item[-] \texttt{Psi.F1} - this is the true $\Psi^F(P_{U,X})$ value for the target causal parameter $E_{U,X}[Y_{a=1, \Delta=1}] - E_{U,X}[Y_{a=0, \Delta=1}]$ (generated in lab 2).
+\item[-] \texttt{generate\_data1} - this is the function that generates $n$ copies of Data Structure 1.
+\item[-] \texttt{generate\_data1\_intervene} - we won't be using this function in this lab, so if you'd like you can erase it from your global environment using the \texttt{rm()} function.
+<<eval = F>>=
+rm(generate_data1_intervene)
+@
+\end{packed_item}
+\item Examine \texttt{ObsData1} using the \texttt{head()} function to re-familiarize yourself with the data.
+\item Estimate the target causal parameter using the \texttt{ltmle()} function:
+\begin{enumerate}
+\item Before calling the \texttt{ltmle()} function, within \texttt{ObsData1}, change the outcome \texttt{DeltaY} to be 0 if it is \texttt{NA}
+<<eval = F>>=
+ObsData1$DeltaY[is.na(ObsData1$DeltaY)] = 0
+@
+\item Call the \texttt{ltmle} function. Within it, make sure to specify the following arguments: \texttt{data}, \texttt{Anodes = c("A", "Delta")} (i.e., the variables we're intervening on), \texttt{Lnodes}, and \texttt{Ynodes = "DeltaY"}.
+\item Additionally, within the function specify the intervention on $A$ we care about. In this case, we're interested in the difference in the mean outcome when $A=1$ and $\Delta=1$ minus $A=0$ and $\Delta = 1$. Thus, set the argument \texttt{abar} to \texttt{list(c(1,1), c(0,1))}.
+\item Also within the function, specify the argument \texttt{stratify = TRUE}. \textit{Why do we need to ensure that we are stratifying on the intervention nodes?}
+\item If the \texttt{Qform} and \texttt{gform} arguments are not specified, \texttt{ltmle} by default estimates each conditional distribution as an additive/main term function of all variables that precede it. Here, that is not the case. We need to specify the \texttt{gform} and \texttt{Qform} arguments as character vectors of the formula used to estimate the outcome regressions/treatment mechanism/missingness mechanism using a linear or logistic regression. Within the function, specify the \texttt{Qform} for $L$ and $\Delta Y$, and \texttt{gform} for $A$ and $\Delta$, according to their correct specifications from \texttt{R} Lab 1:
+\begin{align*}
+A &  = \mathbb{I}\big[U_A < expit(0.2^*W) \big]\\
+L &  = W + A + U_L\\
+\Delta & = \mathbb{I}\big[U_{\Delta} < expit(2^*W + A - L + 3)\big]\\
+Y & = L + 5^*A + 3^*W - 0.25^*A^*W + U_Y 
+\end{align*}
+
+which translates to the following linear models:
+
+\begin{align*}
+g_0(A=1|W) &  = expit(\beta_0 + \beta_1W) \\
+E_0[L|A, W] &  = \beta_0 + \beta_1W + \beta_2A \\
+P_0(\Delta = 1 | A, W, L) & = expit(\beta_0 + \beta_1W + \beta_2A + \beta_3L)\\
+E_0[Y|W,A,L] & = \beta_0 + \beta_1L + \beta_2A + \beta_3W - \beta_4AW 
+\end{align*}
+
+Translated into \texttt{R} code:
+<<eval = F>>=
+Qform=c(L="Q.kplus1~W+A",
+        DeltaY="Q.kplus1~L+A+W+A:W")
+
+gform = c(A = "A ~ W",
+          Delta = "Delta ~ W + A + L")
+@
+\end{enumerate}
+\item Store the results in an object called \texttt{results1}. Show the causal parameter estimates using TMLE and IPTW by using the \texttt{summary()} function and specifying the argument \texttt{"tmle"} and \texttt{"iptw"}, respectively. 
+\item Estimate the causal parameter using g-computation, and store these results as \texttt{results1.gcomp}. Show the g-computation estimates by using the \texttt{summary()} function and specifying the argument \texttt{"gcomp"}.
+\item Choose one of the three estimates implemented above and interpret.
+\end{enumerate}
+
+
+\begin{solution}
+<<eval = F>>=
+# 1. load objects corresponding to Data Structure 1
+load("DataStructure1.RData")
+@
+<<>>=
+# 2. examine ObsData1
+head(ObsData1)
+@
+<<>>=
+# 3a. if Y is NA, make equal to 0
+ObsData1$DeltaY[is.na(ObsData1$DeltaY)] = 0
+@
+<<>>=
+# 3b-e. estimating parameter using ltmle function
+results1 = ltmle(ObsData1, 
+                 Anodes = c("A", "Delta"), 
+                 Lnodes = "L", 
+                 Ynodes = "DeltaY", 
+                 abar = list(c(1,1), c(0,1)), 
+                 stratify = TRUE,
+                 Qform=c(L="Q.kplus1~W+A", 
+                         DeltaY="Q.kplus1~W+A+L+A:W"),
+                 gform = c(A = "A ~ W",
+                           Delta = "Delta ~ W + A + L"))
+results1.gcomp = ltmle(ObsData1, 
+                       Anodes = c("A", "Delta"), 
+                       Lnodes = "L",
+                       Ynodes = "DeltaY", 
+                       abar = list(c(1,1), c(0,1)), 
+                       stratify = TRUE,
+                       Qform=c(L="Q.kplus1~W+A", 
+                               DeltaY="Q.kplus1~W+A+L+A:W"),
+                       gform = c(A = "A ~ W",
+                                 Delta = "Delta ~ W + A + L"),
+                       gcomp = T)
+@
+<<>>=
+# 4. TMLE results
+sum.results1 = summary(results1, "tmle")
+sum.results1
+@
+<<>>=
+# 4. IPTW results
+summary(results1, "iptw")
+@
+<<>>=
+# 5. g-comp results
+summary(results1.gcomp, "gcomp")
+@
+
+\noindent 6. Our point estimate from TMLE was \Sexpr{round(sum.results1$effect.measures$ATE$estimate,4)} with 95\% confidence interval [\Sexpr{round(sum.results1$effect.measures$ATE$CI[1], 4)}, \Sexpr{round(sum.results1$effect.measures$ATE$CI[2], 4)}]. Inference was based on the sample variance of the estimated influence curve. Assuming causal identifiability assumptions hold, getting at least 8 hours of sleep the night before the test increases the test score by an expected \Sexpr{round(sum.results1$effect.measures$ATE$estimate,4)} points (95\% confidence interval \Sexpr{round(sum.results1$effect.measures$ATE$CI[1], 4)}, \Sexpr{round(sum.results1$effect.measures$ATE$CI[2], 4)}).
+
+
+\end{solution}
+
+
+\noindent\large\textbf{Data Structure 2: $O = (\bar{L}(4), \bar{A}(4), Y)$}
+\normalsize
+
+<<echo = F>>=
+load("../../Data structures/DataStructure2.RData")
+@
+
+\noindent\underline{Causal question:} How would the expected exam score at the end of the study (i.e., after $t=4$ days) have differed if all students had gotten 8 or more hours of sleep every night during the entire study (i.e., at $t=1,2,3,4$ days) versus if all students had gotten less than 8 hours of sleep every night during the entire study (i.e., at $t=1,2,3,4$ days)?
+
+\noindent\underline{Causal parameter:}
+\[
+\Psi^F(P_{U,X}) = E_{U,X}[Y_{\bar{a}(4)=1}] - E_{U,X}[Y_{\bar{a}(4)=0}] = \Sexpr{round(Psi.F2, 4)}
+\]
+
+Where the counterfactual $Y_{\bar{a}(4)}$ is a random student's test score if, possibly contrary to fact, the student's sleep status for the past 4 nights before the test was $\bar{A} = \bar{a}$. The expected counterfactual test score would be \Sexpr{round(Psi.F2, 2)} points higher if all students had gotten 8 hours of sleep for the 4 nights leading up to the test than if all students got less than 8 hours for all 4 nights.
+
+\begin{enumerate}
+\item Load \texttt{DataStructure2.RData} using the \texttt{load()} function. A few things should come up in your global environment:
+\begin{packed_item}
+\item[-] \texttt{ObsData2} - this is a dataframe of 1,000 students that follows Data Structure 2 from previous labs.
+\item[-] \texttt{Psi.F2} - this is the true $\Psi^F(P_{U,X})$ value for the target causal parameter $E_{U,X}[Y_{\bar{a}(4)=1}] - E_{U,X}[Y_{\bar{a}(4)=0}]$ (generated in lab 2).
+\item[-] \texttt{TrueMSMbeta1} - this is the true $\Psi^F(P_{U,X})$ value for the target causal parameter $\beta_1$ from $m(\bar{a}|\beta)$, our MSM.
+\item[-] \texttt{TrueMSMbeta1\_wts} - this is the true $\Psi^F(P_{U,X})$ value for the target causal parameter $\beta_1$ from $m(\bar{a}|\beta)$, our weighted MSM. 
+\item[-] \texttt{generate\_data2} - this is the function that generates $n$ copies of Data Structure 2.
+\item[-] \texttt{generate\_data2\_intervene} - we won't be using this function in this lab, so if you'd like you can erase it from your global environment using the \texttt{rm()} function.
+\end{packed_item}
+\item Examine \texttt{ObsData2} using the \texttt{head()} function to re-familiarize yourself with the data.
+\item Estimate the target causal parameter using the \texttt{ltmle()} function:
+\begin{enumerate}
+\item Make sure to specify the \texttt{data, Anodes, Lnodes, Ynodes} arguments according to the corresponding variables in \texttt{ObsData2}. 
+\item Specify the intervention on $\bar{A}$ we care about. In this case, we're interested in the difference in mean outcome when $\bar{A} = 1 = (a(1) = 1, a(2) = 1, a(3) = 1, a(4) = 1)$ minus $\bar{A} = 0 = (a(1) = 0, a(2) = 0, a(3) = 0, a(4) = 0)$. Thus, set the argument \texttt{abar} to \texttt{list(c(1,1,1,1), c(0,0,0,0))}.
+\item Recall that each of the variables is a linear, additive function of all of the variables that precede it. Thus, we don't have to specify the \texttt{Qform} or \texttt{gform} arguments here, as these are the defaults for \texttt{ltmle}.
+\end{enumerate}
+\item Store the results in an object called \texttt{results2}. Show the causal parameter estimates using TMLE and IPTW.
+\item Finally, estimate the causal parameter using g-computation. Store these results as \texttt{results2.gcomp} and show the results for the g-computation estimator.
+\item Choose one of the three estimates used above and interpret.
+\end{enumerate}
+
+\begin{solution}
+<<eval = F>>=
+# load objects corresponding to Data structure 2
+load("DataStructure2.RData")
+@
+<<>>=
+# examine ObsData2
+head(ObsData2)
+@
+<<>>=
+# estimating parameter using ltmle function
+results2 = ltmle(ObsData2, 
+                 Anodes = c("A1", "A2", "A3", "A4"), 
+                 Lnodes = c("L1", "L2", "L3", "L4"), 
+                 Ynodes = "Y", 
+                 abar = list(c(1,1,1,1), c(0,0,0,0)))
+results2.gcomp = ltmle(ObsData2, 
+                       Anodes = c("A1", "A2", "A3", "A4"), 
+                       Lnodes = c("L1", "L2", "L3", "L4"), 
+                       Ynodes = "Y", 
+                       abar = list(c(1,1,1,1), c(0,0,0,0)),
+                       gcomp = T)
+@
+<<>>=
+# TMLE results
+sum.results2 = summary(results2, "tmle")
+sum.results2
+@
+<<>>=
+# IPTW results
+summary(results2, "iptw")
+@
+<<>>=
+# g-comp results
+summary(results2.gcomp, "gcomp")
+@
+
+The point estimate from TMLE was \Sexpr{round(sum.results2$effect.measures$ATE$estimate,4)} with 95\% confidence interval [\Sexpr{round(sum.results2$effect.measures$ATE$CI[1], 4)}, \Sexpr{round(sum.results2$effect.measures$ATE$CI[2], 4)}]. Again, inference was based on the sample variance of the estimated influence curve. The estimated mean test score among students who got at least 8 hours of sleep every night before the test was \Sexpr{round(sum.results2$effect.measures$ATE$estimate,4)} points higher than students who got less than 8 hours of sleep every night, after adjusting for stress levels.
+
+Assuming causal identifiability assumptions hold, getting at least 8 hours of sleep for all four nights before the test (versus less than 8 hours all four nights) increases the test score by an expected \Sexpr{round(sum.results2$effect.measures$ATE$estimate,4)} points (95\% confidence interval \Sexpr{round(sum.results2$effect.measures$ATE$CI[1], 4)}, \Sexpr{round(sum.results2$effect.measures$ATE$CI[2], 4)}).
+
+\end{solution}
+
+
+
+\noindent \Large{\textbf{Bonus!}}
+
+\normalsize
+
+\noindent \textbf{This section is optional, but could be useful if you are thinking of estimating parameters of an MSM for your project.}
+
+\noindent \underline{Causal question 2:} How does cumulative days getting 8 or more hours of sleep affect students' statistics exam scores at the end of the study, assuming a linear relationship between total number of days on which a student got 8 or more hours of sleep and expected exam score? 
+
+
+
+\noindent\underline{Causal parameter 2:}
+
+\[
+\Psi^F(P_{U,X}) = m(\bar{a}|\beta) = E[Y_{\bar{a}}] = \beta_0 + \beta_1 \sum_{t=1}^4a(t)
+\]
+
+Here we are interested in $\beta_1$ -- for one additional night of 8 or more hours of sleep, what is the change in students' mean counterfactual test score?. The true dose-response curve's slope is \Sexpr{round(TrueMSMbeta1, 2)}. This means that, for one more night of 8 or more hours of sleep, students' statistics test scores increase by \Sexpr{round(TrueMSMbeta1, 2)} points, on average.
+
+\begin{enumerate}
+\item Set \texttt{n} equal to the number of rows/observations in \texttt{ObsData2}.
+\item Set up the arguments we will use to estimate the parameter using \texttt{ltmleMSM()}.
+\begin{enumerate}
+\item Initialize \texttt{regimes}, a binary array with dimensions: $n$ by number of \texttt{Anodes} by the possible number of counterfactual treatment regimes.
+\item Initialize \texttt{sumA}, a vector of \texttt{NA}s of length equal to the number of possible counterfactual treatment regimes, where we will store the cumulative nights of sleep, or $\sum_{t=1}^4a(t)$, for each treatment regime.
+\item Make \texttt{abar}, a matrix of the possible counterfactual treatment regimes, with column names each of the $A$ nodes:
+<<eval = F>>=
+abar = as.matrix(expand.grid(c(0,1), c(0,1), c(0,1), c(0,1)))
+colnames(abar) = c("A1", "A2", "A3", "A4")
+@
+\item Within a \texttt{for} loop, store each treatment regime $n$ times in the $3^{rd}$ dimension of the \texttt{regimes} array. Additionally, store $\sum_{t=1}^4a(t)$ for that regime:
+<<eval = F>>=
+for (i in 1:16){
+  
+  regimes[,,i]=matrix(rep(abar[i,],n),byrow=TRUE,nrow=n)
+  sumA[i] = rowSums(regimes[,,i])[1]
+  
+}
+@
+\item Initialize \texttt{summary.measures}, an array with dimensions: the possible number of counterfactual treatment regimes by number of summary measures (\textit{Hint:}, in this case we only want one summary measure) by the number of \texttt{Ynodes} we have.
+\item Make the name of the second dimension of \texttt{summary.measures} called \texttt{"sumA"}
+<<eval = F>>=
+dimnames(summary.measures)[[2]]=list("sumA")
+@
+\item Make the $3^{rd}$ dimension of the \texttt{summary.measures} array equal to a matrix version of \texttt{sumA}:
+<<eval = F>>=
+summary.measures[,,1]=matrix(sumA)
+@
+\item Define \texttt{working.msm} a character formula for the working MSM. In our case, that would correspond to:
+<<eval = F>>=
+working.msm = "Y ~ sumA"
+@
+\end{enumerate}
+\item Estimate the target causal parameter using the \texttt{ltmleMSM()} function:
+\begin{enumerate}
+\item Make sure to specify the arguments \texttt{data, Anodes, Lnodes, Ynodes, working.msm, regimes, summary.measures, msm.weights = NULL}, and the \texttt{gform} (use the same specification as in the previous section).
+\end{enumerate}
+\item Store the results in an object called \texttt{results2.MSM}. Show the causal parameter estimates using TMLE and IPTW.
+\item Estimate the causal parameter using g-computation. Store (in \texttt{results2.MSM.gcomp}) and show the results for the g-computation estimator.
+\item Choose one of the three estimates use above and interpret the significance value. Here, we cannot make interpretations using the value of the coefficient. Why is this? \textit{Hint}: note that the coefficient estimates are based on a transformed $Y$ that is between 0 and 1.
+\end{enumerate}
+
+
+<<>>=
+# set n equal to number of rows
+n = nrow(ObsData2)
+@
+<<>>=
+# initialize regimes with dim n X num Anodes = 4 X num CF regimes = 16
+regimes = array(dim=c(n,4,16)) 
+@
+<<>>=
+# initialize sumA
+sumA = rep(NA, 16)
+@
+<<>>=
+# make matrix of possible CF regimes
+abar = as.matrix(expand.grid(c(0,1), c(0,1), c(0,1), c(0,1)))
+colnames(abar) = c("A1", "A2", "A3", "A4")
+@
+<<>>=
+# fill in regimes and sumA
+for (i in 1:16){
+  
+  regimes[,,i]=matrix(rep(abar[i,],n),byrow=TRUE,nrow=n)
+  sumA[i] = rowSums(regimes[,,i])[1]
+  
+}
+@
+<<>>=
+# initialize and define summary.measures
+summary.measures = array(dim=c(16,1,1))
+dimnames(summary.measures)[[2]]=list("sumA")
+summary.measures[,,1]=matrix(sumA)
+@
+<<>>=
+# define working.msm = character formula for working MSM
+working.msm = "Y ~ sumA"
+@
+<<>>=
+# estimate parameter using ltmleMSM function
+results2.MSM = ltmleMSM(data = ObsData2, 
+                        Anodes = c("A1", "A2", "A3", "A4"), 
+                        Lnodes = c("L1", "L2", "L3", "L4"), 
+                        Ynodes = "Y", 
+                        working.msm = working.msm, 
+                        regimes = regimes, 
+                        summary.measures = summary.measures, 
+                        msm.weights = NULL)
+sum.results2.MSM.tmle = summary(results2.MSM, "tmle")
+sum.results2.MSM.tmle
+summary(results2.MSM, "iptw")
+
+results2.MSM.gcomp = ltmleMSM(data = ObsData2, 
+                              Anodes = c("A1", "A2", "A3", "A4"), 
+                              Lnodes = c("L1", "L2", "L3", "L4"), 
+                              Ynodes = "Y", 
+                              working.msm = working.msm, 
+                              regimes = regimes, 
+                              summary.measures = summary.measures, 
+                              msm.weights = NULL,
+                              gcomp = T)
+summary(results2.MSM.gcomp, "gcomp")
+
+@
+
+Our point estimate of $\beta_1$ on the MSM from TMLE was \Sexpr{round(sum.results2.MSM.tmle$cmat["sumA", "Estimate"],4)} with 95\% confidence interval [\Sexpr{round(sum.results2.MSM.tmle$cmat["sumA", 3], 2)}, \Sexpr{round(sum.results2.MSM.tmle$cmat["sumA", 4], 4)}]. Because the MSM is modeling the \textit{transformed} outcome based on its observed max and min, the estimated coefficients are no longer on the scale of the outcome, i.e., the test score scale (and it's not so straightforward to back-transform the coefficients). Thus, the only interpretation we can make here is that for one more night of 8 or more hours of sleep, students' statistics test scores increase significantly on average, based on the positive coefficient and $p$-value less than 0.05. Note that if we had a binary outcome here we could interpret the coefficients on the MSM because we wouldn't be modeling a transformed outcome. Keep this in mind if you are thinking of estimating parameters of an MSM for your project!
+
+
+
+\noindent\large\textbf{Data Structure 4: $O = (L(1), C(1), A(1), Y(2), L(2), C(2), A(2), Y(3))$}
+\normalsize
+
+<<echo = F>>=
+load("../../Data structures/DataStructure4.RData")
+@
+
+\noindent\underline{Causal question:} How would the counterfactual probability of becoming sick differ under an intervention to get 8 or more hours of sleep for 2 nights before a statistics test versus an intervention to get less than 8 hours of sleep for 2 nights before a statistics test, forcing all students to stay in the class for the time of observation? 
+
+\noindent\underline{Causal parameter:}
+\begin{align*}
+\Psi^F(P_{U,X}) = & E[Y(3)_{\bar{a}(2) = 1, \bar{c}(2) = 0}] - E[Y(3)_{\bar{a}(2) = 0, \bar{c}(2) = 0}] \\
+= & P\big(Y(3)_{\bar{a}(2) = 1, \bar{c}(2) = 0} = 1\big) - P\big(Y(3)_{\bar{a}(2) = 0, \bar{c}(2) = 0} = 1\big) = \Sexpr{round(Psi.F4, 4)}
+\end{align*}
+
+The counterfactual $Y(3)_{\bar{a}(2), \bar{c}(2)=0}$ is the student's illness status on day 3 of the study if, possibly contrary to fact, the student's sleep status was $\bar{A}(2)=\bar{a}(2)$ and he/she remained in the class $\bar{C}(2) = 0$. The difference in counterfactual probability of getting sick if all SPH students got 8 or more hours of sleep every night (setting $\bar{A}(2) = 1$) minus the counterfactual probability of getting sick if all SPH students got fewer than 8 hours of sleep every night (setting $\bar{A}(2) = 0$), ensuring no loss to follow-up by setting $\bar{C}(2) = 0$ (i.e., intervening to ensure that no students drop out of the class) is \Sexpr{round(Psi.F4, 4)*100}\%. 
+
+\begin{enumerate}
+\item Load \texttt{DataStructure4.RData}. Four things should come up in your global environment:
+\begin{packed_item}
+\item[-] \texttt{ObsData4} - this is a dataframe of 1,000 observations that follows Data Structure 4.
+\item[-] \texttt{Psi.F4} - the true $\Psi^F(P_{U,X})$ value for the target causal parameter $P\big(Y(3)_{\bar{a}(2) = 1, \bar{c}(2) = 0} = 1\big) - P\big(Y(3)_{\bar{a}(2) = 0, \bar{c}(2) = 0} = 1\big)$ (generated in lab 2).
+\item[-] \texttt{generate\_data4} - this is the function that generates $n$ copies of Data Structure 4.
+\item[-] \texttt{generate\_data4\_intervene} - we won't be using this function in this lab, so if you'd like you can erase it from your global environment using the \texttt{rm()} function.
+\end{packed_item}
+\item Examine \texttt{ObsData4} using the \texttt{head()} function to re-familiarize yourself with the data.
+\item Estimate the target causal parameter using the \texttt{ltmle()} function:
+\begin{enumerate}
+\item Before calling the \texttt{ltmle} function: the \texttt{ltmle()} function requires censoring nodes (i.e., \texttt{Cnodes}) to be a factor variable with levels \texttt{"censored"} and \texttt{"uncensored"}. The \texttt{ltmle} package includes a helper function called \texttt{BinaryToCensoring()} that allows us to do this in one line. Recode the censoring nodes in \texttt{ObsData4} as such. For example, for \texttt{C1} in \texttt{ObsData4}:
+<<eval = F>>=
+ObsData4$C1 = BinaryToCensoring(is.censored = ObsData4$C1)
+@
+Do the same for \texttt{C2}.
+\item Call the \texttt{ltmle()} function, specifying the \texttt{data, Anodes, Lnodes, Cnodes, Ynodes} arguments according to the corresponding variable names in \texttt{ObsData4}. Remember there are two $Y$ values here!
+\item Also specify \texttt{survivalOutcome = TRUE}.
+\item Specify the intervention $\bar{A}$ we care about. Here, we are interested in the difference in mean outcome when $\bar{A} = 1$ minus $\bar{A} = 0$. 
+\item Recall that each of the variables is a linear, additive function of all of the variables that precede it. Thus, we don't have to specify the \texttt{Qform} or \texttt{gform} arguments here, as these are the defaults for \texttt{ltmle}.
+\end{enumerate}
+\item Store the results in an object called \texttt{results4}. Show the causal parameter estimates using TMLE and IPTW.
+\item Estimate the causal parameter using g-computation in an object called \texttt{results4.gcomp} and show its results.
+\item Choose one of the three estimates used above and interpret.
+\end{enumerate}
+
+\begin{solution}
+<<eval = F>>=
+load("DataStructure4.RData")
+@
+
+<<>>=
+# examine ObsData4
+head(ObsData4)
+@
+<<>>=
+# recode Cnodes in ObsData4 to make them factors 
+# using BinaryToCensoring helper function
+ObsData4$C1 = BinaryToCensoring(is.censored = ObsData4$C1)
+ObsData4$C2 = BinaryToCensoring(is.censored = ObsData4$C2)
+@
+<<>>=
+# estimate parameter using ltmle
+results4 = ltmle(ObsData4, 
+                 Anodes=c("A1", "A2"), 
+                 Lnodes=c("L1", "L2"), 
+                 Cnodes = c("C1", "C2"),
+                 Ynodes=c("Y2", "Y3"),
+                 survivalOutcome = TRUE,
+                 abar=list(c(1, 1), c(0,0)))
+results4.gcomp = ltmle(ObsData4,
+                       Anodes=c("A1", "A2"),
+                       Lnodes=c("L1", "L2"),
+                       Cnodes = c("C1", "C2"),
+                       Ynodes=c("Y2", "Y3"),
+                       survivalOutcome = TRUE,
+                       abar=list(c(1, 1), c(0,0)),
+                       gcomp = T)
+@
+<<>>=
+# TMLE estimate
+sum.results4 = summary(results4, "tmle")
+sum.results4
+@
+<<>>=
+# IPTW estimate
+summary(results4, "iptw")
+@
+<<>>=
+# g-comp estimate
+summary(results4.gcomp, "gcomp")
+@
+
+Interpretation of TMLE estimate: assuming causal identifiability assumptions hold, getting at least 8 hours of sleep for both nights before the test (versus less than 8 hours both nights) decreases the probability of getting sick by \Sexpr{round(sum.results4$effect.measures$ATE$estimate, 4)*(-100)}\%. The 95\% confidence interval for this estimate is [\Sexpr{round(sum.results4$effect.measures$ATE$CI[1], 4)}, \Sexpr{round(sum.results4$effect.measures$ATE$CI[2], 4)}]. Inference is based on the sample variance of the estimated influence curve. 
+
+\end{solution}
+
+\noindent\large\textbf{Data Structure 0: $O = (L(1), A(1), L(2), A(2), Y)$}
+\normalsize
+
+<<echo = F>>=
+load("../../Data structures/DataStructure0_dtr.RData")
+X1 = generate_data0_dtr_intervene(n = 1000000, abar = c(1,1))
+Psi.F0_1 = mean(X1$Y)
+
+X0 = generate_data0_dtr_intervene(n = 1000000, abar = c(0,0))
+Psi.F0_0 = mean(X0$Y)
+@
+\noindent In this section we will estimate the effects of a \textit{dynamic regime}. Recall that a dynamic regime is a rule for assigning treatment based on a subject's characteristics. 
+
+Within the context of your pretend GSR project, you can think of the variables in $O$ as:
+\begin{itemize}
+\item L(t) = a standardized measure of the amount of time you napped the night before, for $t = 1,2$
+\item A(t) = a variable indicating whether or not you slept 8 or more hours, for $t = 1,2$
+\item Y = a variable indicating that you are sick on test day 
+\end{itemize}
+
+For the causal question corresponding to this data structure, we are assigning treatment (student must get 8 hours of sleep) at each time point based on the subject's observed $L$ (amount of nap time) at that timepoint.
+
+\underline{Causal question}: What is the expected outcome, $Y$, if all subjects' treatment at time $t$ was set to 1 if $L(t) < 0$, otherwise their treatment at time $t$ was set to 0 if $L(t) \geq 0$, for $t = 1,2$? What is the probability of getting sick on test day if subjects were assigned to get 8 hours of sleep at time $t$ if their standardized nap time at time $t$ was less than 0, but were assigned to get less than 8 hours of sleep if their standardized nap time was $\geq 0$, for $t = 1,2$?
+
+
+\underline{Causal parameter:} 
+\[
+\Psi^F(P_{U,X}) = E_{U,X}[Y_{d_\theta}] = \Sexpr{round(Psi.F0_dtr, 4)}
+\]
+
+Here, the intervention is the decision rule to assign the treatment $A(t)$ a value of 1 if $L(t)$ falls below the threshold $\theta = 0$ for $t = 1,2$. The notation for this is:
+
+\begin{align*}
+d_\theta(L(t)): \\
+A(t) = 
+    \begin{cases}
+      1, & \text{ if } L(t) < 0 \\
+      0, & \text{ if } L(t) \geq 0
+    \end{cases}
+\end{align*}
+
+For $t = 1,2$. Thus, the dynamic regime would be the set of rules $d_\theta = \big{(}d_{\theta,1}(L(1)), d_{\theta,2}(L(2))\big{)}$.
+
+The counterfactual $Y_{d_\theta}$ is a random subject's outcome if, possibly contrary to fact, the treatment at time $t$ had been given according to the rule: $d_\theta(L(t))$ for $t = 1,2$. In other words, a student's health status if, possibly contrary to fact, their sleep regimen had occurred according to a treatment rule based on the amount of time they napped. The counterfactual expected outcome (probability of getting sick) is \Sexpr{round(Psi.F0_dtr, 4)} if all subjects followed the rule $d_\theta(L(t))$. 
+
+Note that if all students had been assigned 8 hours of sleep the probability of becoming sick would be about \Sexpr{round(Psi.F0_1, 4)}, and if all students had been assigned less than 8 hours of sleep the probability of getting sick would be about \Sexpr{round(Psi.F0_0, 4)} -- both of these probabilities of getting sick are higher than assigning treatment based on the dynamic treatment rule. From this we can conclude that getting 8 hours of sleep works for some people, but not others, and assigning 8 hours of sleep in an \textit{individualized} way (i.e., based on subjects' nap habits) yields better outcomes than giving everyone the same sleep schedule (which is something we might've concluded had we only calculated the ATE!). 
+
+The Sequential Randomization Assumption (SRA) for dynamic regimes will allow us to identify the causal parameter as a function of the observed data distribution. The SRA for this case is:
+\[
+Y_{d_\theta} \perp A(t) | \bar{L}(t), \bar{A}(t-1) \text{ for } t = 1, 2
+\]
+Under the SRA, our g-computation formula (a parameter of the observed data distribution) is then:
+\begin{align*}
+\Psi^F(P_{U,X}) \overbrace{=}^{\text{assumptions}} & \sum_{\bar{l}} E_0[Y|A(2) = d(l(2)), L(2) = l(2), A(1) = d(l(1)), L(1) = l(1)]\\
+&\times P_0(L(2) = l(t)|A(1) = d(l(1)), L(1) = l(1)) \\
+& \times P_0(L(1) = l(1))
+\end{align*}
+
+
+\begin{enumerate}
+\item Load \texttt{DataStructure0\_dtr.RData} using the \texttt{load()} function. Make sure you have specified the correct file path. You should see 4 new things come up in your global environment:
+\begin{packed_enum}
+\item[-] \texttt{ObsData0\_dtr} - this is a dataframe of 1,000 observations that follows Data Structure 0.
+\item[-] \texttt{Psi.F0\_dtr} - this is the true $\Psi^F(P_{U,X})$ value for the target causal parameter $E_{U,X}[Y_{d_\theta}]$.
+\item[-] \texttt{generate\_data0\_dtr} - this is a function that generates $n$ copies of Data Structure 0.
+\item[-] \texttt{generate\_data0\_dtr\_intervene} - we won't be using this function in this lab, so if you'd like you can erase it from your global environment using the \texttt{rm()} function.
+\end{packed_enum}
+\item Examine \texttt{ObsData0\_dtr} to familiarize yourself with the data using the \texttt{head()} function.
+\item Estimate the target causal parameter using the \texttt{ltmle()} function:
+\begin{enumerate}
+\item Before calling the \texttt{ltmle()} function, make a dataframe of treatment regimes according to the rule we care about, and set it equal to \texttt{abar}. For example, we want the first column of \texttt{abar} to be 1 if \texttt{L1} in ObsData0 is less than 0, and 0 otherwise. Same for the second column:
+<<eval = F>>=
+abar = cbind(ObsData0_dtr$L1 < 0, ObsData0_dtr$L2 < 0)
+@
+\item Within the \texttt{ltmle()} function, make sure to specify the arguments \texttt{data}, \texttt{Anodes}, \texttt{Lnodes}, and \texttt{Ynodes} according to the corresponding variable names in \texttt{ObsData0\_dtr}. For example, \texttt{Anodes = c("A1", "A2")} and \texttt{Ynodes = "Y"}.
+\item Additionally, specify the \texttt{abar} argument using the object you made previously.
+\item The outcome regression here is not a main term/additive function of all of the variables that precede it. Thus, we need to specify the \texttt{Qform} argument as a character vector of the formula used to estimate the outcome regression and conditional expectation of $L(2)$. The correct model specifications are: 
+
+\begin{align*}
+E_0[L(2)|L(1), A(1)] & = \beta_0 + \beta_1L(1) + \beta_2A(1) \\
+E_0[Y|\bar{L}(2), \bar{A}(2)] & = expit[\beta_0 + \beta_2L(1)A(1) + \beta_3L(2)A(2)] 
+\end{align*}
+
+\end{enumerate}
+\item Store the results in an object called \texttt{results0}. Show the causal parameter estimates using TMLE and IPTW by using the \texttt{summary()} function and specifying the argument \texttt{"tmle"} and \texttt{"iptw"}, respectively. For example, for TMLE:
+<<eval = F>>=
+summary(results0, "tmle")
+@
+\item Finally, estimate the causal parameter using g-computation by specifying the same arguments as \texttt{results0} in the \texttt{ltmle()} function, except include the argument \texttt{gcomp = TRUE}. Store these results as \texttt{results0.gcomp} and show the g-computation estimates by using the \texttt{summary()} function and specifying the argument \texttt{"gcomp"}.
+\item Choose one of the three estimates implement above and interpret.
+\end{enumerate}
+
+\begin{solution}
+<<eval = F>>=
+# load objects associated with DS 0
+load("DataStructure0_dtr.RData")
+@
+<<>>=
+# examine the data
+head(ObsData0_dtr)
+@
+<<>>=
+# make abar according to treatment rule
+abar = cbind(ObsData0_dtr$L1 < 0, ObsData0_dtr$L2 < 0)
+@
+<<>>=
+# estimating parameter using ltmle function
+results0 = ltmle(ObsData0_dtr, 
+                   Anodes = c("A1", "A2"), 
+                   Lnodes = c("L1", "L2"), 
+                   Ynodes = "Y", 
+                   abar = abar, 
+                   Qform=c(L2="Q.kplus1~L1 + A1", 
+                           Y="Q.kplus1~L1:A1 + L2:A2"))
+results0.gcomp = ltmle(ObsData0_dtr, 
+                       Anodes = c("A1", "A2"), 
+                       Lnodes = c("L1", "L2"), 
+                       Ynodes = "Y", 
+                       abar = abar,
+                       gcomp = TRUE,
+                       Qform=c(L2="Q.kplus1~L1 + A1", 
+                               Y="Q.kplus1~L1:A1 + L2:A2"))
+@
+<<>>=
+# TMLE results
+sum.results0 = summary(results0, "tmle")
+sum.results0
+@
+<<>>=
+# iptw results
+summary(results0, "iptw")
+@
+<<>>=
+# gcomp results
+summary(results0.gcomp, "gcomp")
+@
+
+\noindent The TMLE estimator here gave us a value of \Sexpr{round(sum.results0$treatment$estimate, 4)} with 95\% confidence interval [\Sexpr{round(sum.results0$treatment$CI[1], 4)}, \Sexpr{round(sum.results0$treatment$CI[2], 4)}]. We can interpret this estimate as the probability of $Y$ being 1 if subjects were assigned a treatment at time $t$ based on their covariate values at time $t$ being greater than or less than 0. In other words, TMLE generates an estimate of \Sexpr{round(sum.results0$treatment$estimate, 4)*100}\% probability of getting sick on test day if subjects had been assigned 8 hours of sleep at time $t$ depending on if their nap score at time $t$ was less than 0.
+
+\end{solution}
+
+\pagebreak
+
+\noindent\large\textbf{Performance of estimators}
+\normalsize
+
+\noindent Following are tables describing each estimator's performance (bias, variance, MSE, and proportion confidence interval coverage of the truth) for each data structure/causal parameter. Comment on the strengths and weaknesses of each estimator based on our discussions in class, and draw from the performance results shown below as examples of their properties. 
+\begin{solution}
+
+<<eval = F>>=
+# Code for generating performance metrics
+
+set.seed(252)
+load("../Data structures/DataStructure1.RData")
+load("../Data structures/DataStructure2.RData")
+load("../Data structures/DataStructure4.RData")
+load("../Data structures/DataStructure0_dtr.RData")
+
+performance_DS1 = function() {
+  
+  n = 1000
+  
+  ### DS 1 ###
+  ObsData1 = generate_data1(n)
+  ObsData1$DeltaY[is.na(ObsData1$DeltaY)] = 0
+  results1 = ltmle(ObsData1, 
+                   Anodes = c("A", "Delta"), 
+                   Lnodes = "L", 
+                   Ynodes = "DeltaY", 
+                   abar = list(c(1,1), c(0,1)), 
+                   stratify = TRUE,
+                   Qform=c(L="Q.kplus1~W+A", 
+                           DeltaY="Q.kplus1~W+A+L+A:W"),
+                   gform = c(A = "A ~ W",
+                             Delta = "Delta ~ W + A + L"))
+  results1.gcomp = ltmle(ObsData1, 
+                         Anodes = c("A", "Delta"), 
+                         Lnodes = "L",
+                         Ynodes = "DeltaY", 
+                         abar = list(c(1,1), c(0,1)), 
+                         stratify = TRUE,
+                         Qform=c(L="Q.kplus1~W+A", 
+                                 DeltaY="Q.kplus1~W+A+L+A:W"),
+                         gform = c(A = "A ~ W",
+                                   Delta = "Delta ~ W + A + L"),
+                         gcomp = T)
+  sum.results1.tmle = summary(results1, "tmle")
+  sum.results1.iptw = summary(results1, "iptw")
+  sum.results1.gcomp = summary(results1.gcomp)
+  tmle1 = sum.results1.tmle$effect.measures$ATE$estimate
+  tmle1.cov = sum.results1.tmle$effect.measures$ATE$CI[1] < Psi.F1 & 
+    sum.results1.tmle$effect.measures$ATE$CI[2] > Psi.F1
+  iptw1 = sum.results1.iptw$effect.measures$ATE$estimate
+  iptw1.cov = sum.results1.iptw$effect.measures$ATE$CI[1] < Psi.F1 & 
+    sum.results1.iptw$effect.measures$ATE$CI[2] > Psi.F1
+  gcomp1 = sum.results1.gcomp$effect.measures$ATE$estimate
+  
+  DS1est = c(tmle1 = tmle1, iptw1 = iptw1, gcomp1 = gcomp1,
+             tmle1.cov = tmle1.cov, iptw1.cov = iptw1.cov, gcomp1.cov = NA)
+
+  return(DS1est)
+  
+} 
+
+estimates_DS1 = t(replicate(1000, performance_DS1()))
+save(estimates_DS1, file = "../RLab7/performance/estimates_DS1.RData")
+
+performance_DS2 = function() {
+
+  n = 1000
+
+  ### DS 2 ###
+  ObsData2 = generate_data2(n)
+  results2 =  ltmle(ObsData2, 
+                    Anodes = c("A1", "A2", "A3", "A4"), 
+                    Lnodes = c("L1", "L2", "L3", "L4"), 
+                    Ynodes = "Y", 
+                    abar = list(c(1,1,1,1), c(0,0,0,0)))
+  results2.gcomp = ltmle(ObsData2, 
+                         Anodes = c("A1", "A2", "A3", "A4"), 
+                         Lnodes = c("L1", "L2", "L3", "L4"), 
+                         Ynodes = "Y", 
+                         abar = list(c(1,1,1,1), c(0,0,0,0)),
+                         gcomp = T)
+  sum.results2.tmle = summary(results2, "tmle")
+  sum.results2.iptw = summary(results2, "iptw")
+  sum.results2.gcomp = summary(results2.gcomp, "gcomp")
+  tmle2 = sum.results2.tmle$effect.measures$ATE$estimate
+  tmle2.cov = sum.results2.tmle$effect.measures$ATE$CI[1] < Psi.F2 & 
+    sum.results2.tmle$effect.measures$ATE$CI[2] > Psi.F2
+  iptw2 = sum.results2.iptw$effect.measures$ATE$estimate
+  iptw2.cov = sum.results2.iptw$effect.measures$ATE$CI[1] < Psi.F2 & 
+    sum.results2.iptw$effect.measures$ATE$CI[2] > Psi.F2
+  gcomp2 = sum.results2.gcomp$effect.measures$ATE$estimate
+  
+  DS2est = c(tmle2 = tmle2, iptw2 = iptw2, gcomp2 = gcomp2,
+             tmle2.cov = tmle2.cov, iptw2.cov = iptw2.cov, gcomp2.cov = NA)
+
+  return(DS2est)
+
+}
+
+estimates_DS2 = t(replicate(1000, performance_DS2()))
+save(estimates_DS2, file = "../RLab7/performance/estimates_DS2.RData")
+
+
+performance_DS4 = function() {
+  
+  n = 1000
+  
+  ### DS 4 ###
+  ObsData4 = generate_data4(n)
+  ObsData4$C1 = BinaryToCensoring(is.censored = ObsData4$C1)
+  ObsData4$C2 = BinaryToCensoring(is.censored = ObsData4$C2)
+  results4 = ltmle(ObsData4, 
+                   Anodes=c("A1", "A2"), 
+                   Lnodes=c("L1", "L2"), 
+                   Cnodes = c("C1", "C2"),
+                   Ynodes=c("Y2", "Y3"),
+                   survivalOutcome = TRUE,
+                   abar=list(c(1, 1), c(0,0)))
+  results4.gcomp = ltmle(ObsData4,
+                         Anodes=c("A1", "A2"),
+                         Lnodes=c("L1", "L2"),
+                         Cnodes = c("C1", "C2"),
+                         Ynodes=c("Y2", "Y3"),
+                         survivalOutcome = TRUE,
+                         abar=list(c(1, 1), c(0,0)),
+                         gcomp = T)
+  sum.results4.tmle = summary(results4, "tmle")
+  sum.results4.iptw = summary(results4, "iptw")
+  sum.results4.gcomp = summary(results4.gcomp, "gcomp")
+  tmle4 = sum.results4.tmle$effect.measures$ATE$estimate
+  tmle4.cov = sum.results4.tmle$effect.measures$ATE$CI[1] < Psi.F4 & 
+    sum.results4.tmle$effect.measures$ATE$CI[2] > Psi.F4
+  iptw4 = sum.results4.iptw$effect.measures$ATE$estimate
+  iptw4.cov = sum.results4.iptw$effect.measures$ATE$CI[1] < Psi.F4 & 
+    sum.results4.iptw$effect.measures$ATE$CI[2] > Psi.F4
+  gcomp4 = sum.results4.gcomp$effect.measures$ATE$estimate
+  
+  DS4est = c(tmle4 = tmle4, iptw4 = iptw4, gcomp4 = gcomp4,
+             tmle4.cov = tmle4.cov, iptw4.cov = iptw4.cov, gcomp4.cov = NA)
+  
+  return(DS4est)
+  
+}
+
+estimates_DS4 = t(replicate(1000, performance_DS4()))
+save(estimates_DS4, file = "../RLab7/performance/estimates_DS4.RData")
+
+
+performance_DS0_dtr = function() {
+  
+  n = 1000
+  
+  ### DS 0 ###
+  ObsData0_dtr = generate_data0_dtr(n)
+  abar = cbind(ObsData0_dtr$L1 < 0, ObsData0_dtr$L2 < 0)
+  results0 = ltmle(ObsData0_dtr, 
+                   Anodes = c("A1", "A2"), 
+                   Lnodes = c("L1", "L2"), 
+                   Ynodes = "Y", 
+                   abar = abar, 
+                   Qform=c(L2="Q.kplus1~L1 + A1", 
+                           Y="Q.kplus1~L1:A1 + L2:A2"))
+  results0.gcomp = ltmle(ObsData0_dtr, 
+                         Anodes = c("A1", "A2"), 
+                         Lnodes = c("L1", "L2"), 
+                         Ynodes = "Y", 
+                         abar = abar,
+                         Qform=c(L2="Q.kplus1~L1 + A1", 
+                                 Y="Q.kplus1~L1:A1 + L2:A2"),
+                         gcomp = TRUE)
+  sum.results0.tmle = summary(results0, "tmle")
+  sum.results0.iptw = summary(results0, "iptw")
+  sum.results0.gcomp = summary(results0.gcomp, "gcomp")
+  tmle0 = sum.results0.tmle$treatment$estimate[[1]]
+  tmle0.cov = sum.results0.tmle$treatment$CI[1] < Psi.F0_dtr & 
+    sum.results0.tmle$treatment$CI[2] > Psi.F0_dtr
+  iptw0 = sum.results0.iptw$treatment$estimate[[1]]
+  iptw0.cov = sum.results0.iptw$treatment$CI[1] < Psi.F0_dtr & 
+    sum.results0.iptw$treatment$CI[2] > Psi.F0_dtr
+  gcomp0 = sum.results0.gcomp$treatment$estimate[[1]]
+  
+  DS0est = c(tmle0 = tmle0, iptw0 = iptw0, gcomp0 = gcomp0,
+             tmle0.cov = tmle0.cov, iptw0.cov = iptw0.cov, gcomp0.cov = NA)
+  
+  return(DS0est)
+}
+
+estimates_DS0 = t(replicate(1000, performance_DS0_dtr()))
+save(estimates_DS0, file = "../RLab7/performance/estimates_DS0.RData")
+
+@
+
+
+<<>>=
+load("../../RLab7/performance/estimates_DS1.RData")
+load("../../RLab7/performance/estimates_DS2.RData")
+load("../../RLab7/performance/estimates_DS4.RData")
+load("../../RLab7/performance/estimates_DS0.RData")
+
+estimates_mat = cbind(estimates_DS1,
+                      estimates_DS2,
+                      estimates_DS4,
+                      estimates_DS0)
+
+truthvector = c(PsiF1 = rep(Psi.F1, 3), 
+                PsiF2 = rep(Psi.F2, 3), 
+                PsiF4 = rep(Psi.F4, 3), 
+                PsiF0 = rep(Psi.F0_dtr, 3))
+# bias
+bias = colMeans(estimates_mat[,-grep(pattern = ".cov", colnames(estimates_mat))]) - truthvector
+# var
+var = diag(var(estimates_mat[,-grep(pattern = ".cov", colnames(estimates_mat))]))
+# MSE
+mse = bias^2 + var
+
+perf_table = rbind(Bias = bias, Variance = var, MSE = mse, Coverage = colMeans(estimates_mat[,grep(pattern = ".cov", colnames(estimates_mat))]))
+
+@
+
+
+\end{solution}
+
+<<echo = F, results = tex>>=
+library(xtable)
+
+perf_table = round(perf_table, 3)
+perf_table[is.na(perf_table)] = "-"
+perf_table[perf_table == "0"] = "0.0"
+
+print(xtable(perf_table[,1:3], caption = "Performance - Data Structure 1 for $E_{U,X}[Y_{a=1, \\Delta=1}] - E_{U,X}[Y_{a=0, \\Delta=1}]$", digits = 4), table.placement = "!h")
+@
+
+<<echo = F, results = tex>>=
+print(xtable(perf_table[,4:6], caption = "Performance - Data Structure 2 for $E_{U,X}[Y_{\\bar{a}(4)=1}] - E_{U,X}[Y_{\\bar{a}(4)=0}]$", digits = 4), table.placement = "!h")
+@
+
+<<echo = F, results = tex>>=
+print(xtable(perf_table[,7:9], caption = "Performance - Data Structure 4 for $P\\big(Y(3)_{\\bar{a}(2) = 1, \\bar{c}(2) = 0} = 1\\big) - P\\big(Y(3)_{\\bar{a}(2) = 0, \\bar{c}(2) = 0} = 1\\big)$", digits = 4), table.placement = "!h")
+@
+
+<<echo = F, results = tex>>=
+print(xtable(perf_table[,10:12], caption = "Performance - Data Structure 0 for $E_{U,X}[Y_{\\theta}]$", digits = 4), table.placement = "!h")
+@
+
+
+\noindent\textbf{Bonus questions:} \\
+1. Calculate each estimator's bias, variance and MSE to replicate these performance results. \\
+%2. We used a slightly different data generating process in this lab for Data Structure 1, compared to the original in \texttt{R} Lab 1. How would the estimators have performed had we kept the original data generating process? Why? Explain. \\
+%3. For Data Structure 2, why is the confidence interval coverage so low for IPTW? \\
+2. Why do we omit confidence interval coverage for the g-computation estimator? \\
+%4. \url{https://www.newyorker.com/magazine/2017/10/23/the-secrets-of-sleep}
+
+
+\begin{solution}
+Estimator characteristics:
+\begin{itemize}
+\item IPTW
+\begin{itemize}
+\item Relies on consistent estimation of treatment/censoring mechanism -- in this case we have correctly specified all treatment/censoring mechanism models for all estimator/data scenarios
+\item Inefficient -- we especially have high variance in scenarios in which we know there are practical positivity violations (e.g., Data Structure 2)
+\item Higher bias due to positivity (e.g., Data Structure 2)
+\item In settings without positivity violations, the IC-based variance estimator will be conservative if $g_0$ is estimated using a correctly specified parametric model. This can be seen in the conservative ($>$ nominal 95\%) coverage of the IPTW estimator for Data Structures 1, 4 and 0.
+\end{itemize}
+\item G-computation
+\begin{itemize}
+\item Relies on consistent estimation of outcome regressions (i.e., iterated conditional expectations) -- in this case we have (almost) correctly specified all outcome regressions (almost, because we used logistic main term models for the \textit{iterated conditional expectations}, when in fact the underlying \textit{variables} were generated using logistic main term models). Consistently estimating the outcome regressions is good for instances where there are near positivity violations.
+\item We are omitting coverage estimates for g-computation estimators here because no appropriate variance estimates are available. One can derive an IC-based variance estimate for g-computation using the functional delta method if the $Q$ factors are estimated using maximum likelihood estimation according to correctly specified models, but if the $Q$ factors are estimated using data-adaptive approaches, no IC-based variance method is available. The parameteric bootstrap provides an alternative, although again there is no theory supporting its valid coverage if the $Q$ factors are estimated with maximum likelihood methods. This is why we have ommitted results on its confidence interval coverage, and also why a warning comes up when we estimate using g-computation.
+\end{itemize}
+\item TMLE
+\begin{itemize}
+\item Double robust, meaning it is consistent if the outcome regressions or treatment/censoring mechanisms are estimated correctly. In this lab they are estimated correctly, so TMLE should be the most efficient and unbiased estimator. 
+\item If there are near positivity violations, the clever covariate gets vary large, causing unstable estimates and unreliable inference. We could look at the distribution of  $g_n$ and/or the IPTW weights to determine whether or not there are near violations. 
+\end{itemize}
+\end{itemize}
+
+
+
+\end{solution}
+
+
+
+
+\pagebreak
+\section{Optional Feedback}
+
+Please attach responses to these questions to your lab. Thank you in advance!
+
+\begin{enumerate}
+\item Did you catch any errors in this lab? If so, where?
+\item What did you learn in this lab?
+\item Do you think that this lab met the goals listed at the beginning? 
+\item What else would you have liked to review? What would have helped your understanding?
+\item Any other feedback?
+\end{enumerate}
+
+
+\end{document}
+
+
+
