@@ -23,11 +23,11 @@ This lab focuses on simulating longitudinal data; there are two large improvemen
 
 Pedagogy principles: The first part, using a real-world example that feels meaningful, is a way to get students more engaged with the actual research questions. These data-generating systems are used in almost every lab of the course so if it actually feels like we are answering a pertinent societal question, it will help motivate students to be active with the material. Likewise, getting students up and on the white-board together again to draw out the DAGs helps avoid students being passive and disengaged. This also helps the students develop skills in simulating data based on real data that is not currently taught but is needed for the final project. The second part, paired programming, is first done via visibly assigning random groups - the goal of this is to mobilize empathy, that is, because the groups are randomized if one student isn't as good at R programming as another, the more experienced will show more empathy in trying to help the person who is struggling more-so. Paired programming involves a navigator (that focuses on big-picture aspects of the task) and the driver (who is actually programming the immediate sets). This [video](https://www.youtube.com/watch?v=vgkahOzFH2Q) gives a nice breakdown (by kids!) of how to do paired programming. Why paired programming? I noticed that even when randomly assigning groups of 3-4 students to work on the labs together, invariably the students will just work on the labs together but independently (each person just programming) and they only engage when somebody has a bug/error in their code. By doing paired programming and having roles as navigator and driver, I think this will allow students to engage more with the material as a unit which helps with collaborative learning. 
 
-Goal: 
+Goal: To motivate students to care about a real-world data problem. Teach students how to simulate data from real world data. Engage students as a group in collaboratively thinking about data-generating systems. To use paired-programming to help students engage with programming together rather than individually. 
 
-To-do: 
+To-do: This will require re-writing a majority of this lab. We will need to 1. identify a new dataset that is longitudinal and addresses an issue related to racism and social justice from which a simulation can be created for and used during the rest of the class, 2. write sections to address this and give the story, 3. write sections to have students work in groups to draw out the system, and 4. retain most of what is currently in the lab, that is with simulating these new data-generating systems but with paired programing. Students can then submit the labs as their paired units, rather than individually.
 
-Visual Aids: 
+Visual Aids: No visual aids for this section.
 # Lab 2
 
 
