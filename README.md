@@ -80,21 +80,21 @@ solutions using student work on the whiteboard to work through the different lay
 # Lab 6
 
 
-**Lab Restructuring**:
+**Lab Restructuring**: This lab focuses on estimation using the longitudinal g-comp formula, the interative conditional expectations (ICE) representation of the g-comp formula and the iterative conditional expectations TMLE. It is difficult to give an intuitive insight into these estimators because it's really just math; however, certain building blocks can help. For example, lectures by [Ben Lambert](https://www.youtube.com/watch?v=Ki2HpTCPwhM) can be very helpful for students to understand the law of iterative expectations. It would be useful for students to spend about an hour review these concepts before coming into class. Some lecture material should be developed to help students connect the longitudinal g-comp formula to the programming of conditional densities - historically it feels there is a disconnect here for students and the subsequent programming and application the students may be able to do but understand how it traces back to the math still has a gap. Likewise, students have a hard time in this lecture understanding how the longitudinal g-comp formula can represented as iterative expectations - which is where I think the Ben Lambert lectures can help. This will also help with the LTMLE approach as it's basically just a TMLE update at each step going backwards through the conditional expectations. Generally, I would say the material in the beginning of this lab is too advanced for any group work and supplementary material should be developed to help students get better insight as to what is happening. Once exposition of the problem is given in the first half hour, the next half of section should be directed towards paired programming of each of the estimators. Again, a transparent random assignment of pairs of navigators and drivers and after X time they switch roles in the pair. The typical approach to this lab is to go over the estimator math very lightly and then show how to program each of the estimators, break into groups for about 15 minutes to allow for group work, then return together, go over the answers, rinse and repeat. This does give some time for students to work but it's really not enough for thorough understanding. Therefore, I suggest that the beginning of the lab be restructured to give the students more insight into the notation - like, for the g-comp formula, why is the conditional expectation of Y marginalized over the product of conditional densities of non-intervention nodes? I'd start with these very hard questions and try and find ways to explain things to students in words rather than just saying, "Here is the formula for longitudinal g-comp", and move-on. 
 
-**Pedagogy principles**:
+**Pedagogy principles**: Collaborative learning through paired programming.
 
-**Goal**: 
+**Goal**: To engage students more with the mathematical notation of the estimators and how it connects to what they subsequently program. To make the programming of these more difficult estimators feel more collaborative through paired programming. 
 
-**To-do**: 
+**To-do**: Most of the existing lab can be used but the beginning should be re-written with some longer form descriptions of the math to try and give more intuition, where possible.
 
 # Lab 7
 
-**Lab Restructuring**:
+**Lab Restructuring**: This is the final lab of the semester and goes over again longitudinal estimation of binary exposures using LTMLE. The current lab just loads in the data structures for simulated data related to amount of sleep and test scores/probability of being sick. So far, I have proposed using simulated data that is based on a real-world example from some open access data source that is related to health/resource inequity to simultaneously teach these estimators but also keep in mind with the class the inherently unjust system that we live in and the impacts of racism in public health. I think that this is a good place for the course to align more with an anti-racism approach. Given the scope of the class, a data example based on real world scenarios is really the only place this topic to be slotted in. As such, in this lab - rather than just using LTMLE again on the same data-generating systems, I believe here we should use LTMLE to get estimates for our target parameters of interest in both the simulated data we made in Lab 1 and in the actual data that the simulated data was based off of. This way students are more energized to see how estimates from our simulated data compare to the actual data and to see if we answer a real longitudinal question based on data that seems meaningful - rather than the accessible yet slightly boring examples used to date. I think this material will help keep the class engaged, especially since it's the last lab. This lab will also work well with paired programming as it is focuses on application of the LTMLE package on data. Once students are finished their estimates of the simulated and real data, they can put their answers on the board. Once all the groups are finished they can compare answers, check code, and discuss A. what the real-world esitmates mean and B. what could cause differences betwen estimates for the simulated and real data. 
 
-**Pedagogy principles**:
+**Pedagogy principles**: Ends the class on a real-world example that shows how understanding non-parameteric estimators in longitudinal data can be used to advocate for anti-racism. Paired programming aids in collaborative learning. 
 
-**Goal**: 
+**Goal**: This last lab now mirrors exactly what students are expected to do for their final projects. It also shows students 
 
 **To-do**: 
 
