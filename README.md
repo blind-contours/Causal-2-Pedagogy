@@ -57,15 +57,21 @@ consolidating from the bottom.
 ![DAG examples](https://github.com/blind-contours/Causal-2-Pedagogy/blob/main/Visuals/Lab_3/DAG_examples.png)
 
 # Lab 4
+**Lab Restructuring**: At this point in the lab students should be comfortable with the background material needed in previous steps of the roadmap before estimation. This means that, to really transfer learning to the individual level, students need to begin taking on more responsibility for their own learning. In the previous labs, there was not much work needed by students to be done before the lab, besides Lab 0. Now however, we should begin priming students to come in with some background as to what will be covered. In this case, the current lab is the inverse probability of treatment weighted estimator, how it is equivalent to the g-computation estimator, and the various performance measures for estimators. Again, rather than just presenting students with the equations in the PDF and having them program - we should begin by handing students a lab principles worksheet, randomly splitting into groups, and having students work on the white board to answer questions such as "Write out the equation for MSE based on bias and variance of an estimator" and "Write out the IPTW estimator for two treatment time points under no censoring" and "Draw a histogram of propensity weights that are indicative of positivity violations for the IPTW estimator". This particular strategy at the beginning of each class - the lab principles worksheet that is done by groups on the whiteboard- is particular important for the consolidation from the bottom which must start with the presentation of solutions that all students got to. In this way, before entering into coding of the estimators, everyone is starting from the same place. The strategy of teaching the whole class then becomes a scenario where the GSI leads a detailed discussion of the tasks and
+solutions using student work on the whiteboard to work through the different layers of the solution. Then, with those solutions, the class then can then work into applying the estimators to the real world data simulation and to assessing the bias/variance/MSE of the estimator under resampling. 
 
+**Pedagogy principles**: Active engagement by using the white board in randomly assigned groups. Putting responsibility on the students for their own learning a little more. Consolidation from the bottom. Because of the structure of the class, what students wrote on the white board now become their own meaningful notes for the subsequent section of implementing/programing the estimators. Students are used to being told exactly what to write down in their notes, or in our case, exactly what to write in the solutions/programming. Restructuring the classroom to start with group work of the lab principles worksheet allows students to simultaneously think actively in solutions which then become the meaningful notes for the next sections when they are programming.
 
-**Goal**: 
+**Goal**: Consolidation from the bottom, meaningful notes, managing flow by creating worksheets that are incrementally harder. 
 
-**To-do**: 
+**To-do**: Lab principles worksheets will need to be made. All the equations and programming can be retained in the current lab 4 but the general problem to be answer will need to be reflected in the new real world example. 
 
 
 # Lab 5
 
+**Lab Restructuring**: This lab focuses on using the LTMLE package for longitudinal target learning. 
+
+**Pedagogy principles**:
 
 **Goal**: 
 
@@ -74,11 +80,19 @@ consolidating from the bottom.
 # Lab 6
 
 
+**Lab Restructuring**:
+
+**Pedagogy principles**:
+
 **Goal**: 
 
 **To-do**: 
 
 # Lab 7
+
+**Lab Restructuring**:
+
+**Pedagogy principles**:
 
 **Goal**: 
 
