@@ -52,7 +52,7 @@ This repository aims to organize all the materials and teaching resources for PH
 **To-do**: 
 
 **Visual Aids**: For this lab, I think that students should use the white board to draw data structures similar to these examples 
-![DAG examples]https://github.com/blind-contours/Causal-2-Pedagogy/blob/main/Visuals/Lab_3/DAG_examples.png
+![DAG examples](https://github.com/blind-contours/Causal-2-Pedagogy/blob/main/Visuals/Lab_3/DAG_examples.png)
 
 # Lab 4
 
