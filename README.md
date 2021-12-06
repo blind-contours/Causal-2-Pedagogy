@@ -19,6 +19,7 @@ Visual Aids: I have provided the jpegs for a GIF I created to help students unde
 
 # Lab 1
 
+This lab focuses on simulating longitudinal data; there are two large improvements that can be made to this lab. The first is that the current example is an arbitrary research question that is not based on any real-world data. I find that, at the end of class many if not all students have questions about how to simulate a data-generating systems. This is because, the students are required to simuate data that immitates the functional forms they believe are present in their real-world data project. That is, students need to investigate how variables are associated, determine a temporal ordering, think about interactions in the data and once they have laid out the general structure, begin to program these as sets of equations to simulate from. Therefore, I believe this lab can be restructured to use a simple real-world data example in the beginning that will help students visualize the directed acyclic graph for longitudinal data and also teach them how to think about simualting data from actual data which will be needed at the end of the course. Similarly, I believe this is an excellent opportunity to engage students on how statistics can be used to investigate/estimate issues around social inequitities and how racism is a public health crisis. As such, I propose using existing data from [Center for the Study of Racism, Social Justice, and Health][https://www.racialhealthequity.org/data].  
 
 Goal: 
 
