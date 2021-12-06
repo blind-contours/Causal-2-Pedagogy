@@ -69,13 +69,13 @@ solutions using student work on the whiteboard to work through the different lay
 
 # Lab 5
 
-**Lab Restructuring**: This lab focuses on using the LTMLE package for longitudinal target learning. 
+**Lab Restructuring**: This lab focuses on using the LTMLE package for longitudinal target learning. At this point, students are expected to know the programming necessary to create estimators in the longitudinal setting and therefore this lab can be mostly self-directed by the students. As such, I propose this lab to be another paired programming lab. Students are randomly assigned pairs of a navigator and driver and they follow through the lab to implement LTMLE and to do non-parametric bootstrap of the estimator. Because this lab is heavely programming there aren't many other ways to change the teaching style. Historically, this lab was taught by simply scrolling through the PDF to show students the various equations in estimating variance etc. and to show the parameters that are past to LTMLE for estimation, as well as some skeleton code on how to do the non-parametric bootstrap. This lends itself naturally to passivity and disengagement of the material until the student just goes back to watch the lab and finishes it themselves, individually which doesn't facilitate collaborative learning. The paired programming is attempt to solve this issue. 
 
-**Pedagogy principles**:
+**Pedagogy principles**: Random assignment of pairs. Collaborative learning through paired programming.
 
-**Goal**: 
+**Goal**: To teach students how to use LTMLE in a more engaged and active way rather than passively listening to the description of it.
 
-**To-do**: 
+**To-do**: Once the data-generating scripts are updated to represent a real world example most of this lab will remain the same. 
 
 # Lab 6
 
