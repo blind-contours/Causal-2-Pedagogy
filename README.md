@@ -94,7 +94,7 @@ solutions using student work on the whiteboard to work through the different lay
 
 **Pedagogy principles**: Ends the class on a real-world example that shows how understanding non-parameteric estimators in longitudinal data can be used to advocate for anti-racism. Paired programming aids in collaborative learning. 
 
-**Goal**: This last lab now mirrors exactly what students are expected to do for their final projects. It also shows students 
+**Goal**: This last lab now mirrors exactly what students are expected to do for their final projects. Changing the data material to a real-world example will help keep students engaged - rather than tuning out because of repetitiveness. Paired programming and comparing answers helps students work more interdependently.
 
-**To-do**: 
+**To-do**: Will need to re-write sections of this lab to include the real data example and load data from the new simulations.
 
